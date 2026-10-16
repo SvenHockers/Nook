@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nook",
+  "version": "0.1.0",
+  "identifier": "dev.nook.workspace",
+  "build": {
+    "beforeDevCommand": "npm run desktop:prepare && npm run dev --prefix frontend",
+    "beforeBuildCommand": "npm run desktop:prepare && npm run build --prefix frontend",
+    "devUrl": "http://127.0.0.1:34115",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Nook",
+        "width": 1380,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 640,
+        "backgroundColor": "#f7f8f5"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost ws://127.0.0.1:34115 http://127.0.0.1:34115; object-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "externalBin": ["binaries/nook-backend"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": { "minimumSystemVersion": "14.0" },
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": { "installMode": "currentUser" }
+    }
+  }
+}

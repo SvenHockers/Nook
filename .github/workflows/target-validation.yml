@@ -1,0 +1,40 @@
+name: Protected target validation
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [macOS-ARM64, Windows11-X64]
+        required: true
+      provider:
+        type: choice
+        options: [codex, claude]
+        required: true
+permissions:
+  contents: read
+jobs:
+  native:
+    # Configure this environment with required reviewers and default-branch-only access.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    environment: target-validation
+    runs-on: [self-hosted, nook-validation, "${{ inputs.platform }}"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify actual target OS
+        shell: pwsh
+        if: inputs.platform == 'Windows11-X64'
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          if ($os.Caption -notmatch 'Windows 11' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'Windows 11 x64 required' }
+      - name: Verify Apple Silicon
+        if: inputs.platform == 'macOS-ARM64'
+        run: test "$(uname -m)" = arm64
+      - name: Runtime and process checks
+        run: go test -race ./...
+      - name: Signed-in provider launch and resume
+        run: go run ./cmd/nook-check --live --provider ${{ inputs.provider }} --report validation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-${{ inputs.platform }}-${{ inputs.provider }}
+          path: validation.json

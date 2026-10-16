@@ -1,0 +1,80 @@
+name: Desktop CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            backend: src-tauri/binaries/nook-backend-aarch64-apple-darwin
+            bundles: app,dmg
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            backend: src-tauri/binaries/nook-backend-x86_64-pc-windows-msvc.exe
+            bundles: nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm ci --prefix frontend
+      - name: Go checks and process contract tests
+        run: |
+          go vet ./...
+          go test -race ./...
+      - name: Frontend checks
+        run: |
+          npm run build --prefix frontend
+          npm test --prefix frontend
+      - name: Browser engines
+        working-directory: frontend
+        run: npx playwright install chromium webkit
+      - name: UI and accessibility
+        run: npm run test:e2e --prefix frontend
+      - name: Build Go runtime
+        run: npm run desktop:prepare
+      - name: Desktop runtime contract
+        run: node scripts/sidecar-smoke.mjs ${{ matrix.backend }}
+      - name: Rust checks
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --locked -- -D warnings
+      - name: Development packages (unsigned)
+        run: npm run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nook-${{ matrix.target }}-development
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ui-traces-${{ matrix.target }}
+          path: frontend/test-results/

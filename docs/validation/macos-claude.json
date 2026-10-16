@@ -1,0 +1,11 @@
+{
+  "arch": "arm64",
+  "detail": "Failed to authenticate: OAuth session expired and could not be refreshed",
+  "durationSeconds": 1.4462774999999999,
+  "launchAndResume": false,
+  "os": "darwin",
+  "provider": "claude",
+  "realApprovalsValidated": false,
+  "timestamp": "2026-10-16T07:25:09Z",
+  "version": "2.1.301 (Claude Code)"
+}

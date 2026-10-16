@@ -1,0 +1,18 @@
+{
+  "name": "nook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "desktop:prepare": "node scripts/build-sidecar.mjs",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "check": "npm run check --prefix frontend",
+    "test": "npm test --prefix frontend"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "prettier": "3.8.1"
+  }
+}
