@@ -1,18 +1,32 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, demo } from "../../api";
 import type { SessionEvent } from "../../types";
 import {
+  buildEvidence,
   cacheKey,
   compose,
-  sessionEvidence,
   validatePresentation,
+  validateResult,
+  type ComponentType,
   type Evidence,
+  type PresentResult,
   type Source,
 } from "./model";
-function EvidenceView({ evidence: e }: { evidence: Evidence }) {
+function EvidenceView({
+  evidence: e,
+  type,
+}: {
+  evidence: Evidence;
+  type: ComponentType;
+}) {
   const d = e.data;
   switch (d.kind) {
     case "text":
-      return <p className="evidence-text">{d.text}</p>;
+      return type === "TerminalExcerpt" || type === "CodeDiff" ? (
+        <pre className="evidence-code">{d.text}</pre>
+      ) : (
+        <p className="evidence-text">{d.text}</p>
+      );
     case "metric":
       return (
         <p className="metric-value">
@@ -87,16 +101,31 @@ function EvidenceView({ evidence: e }: { evidence: Evidence }) {
     }
   }
 }
+/** Lets a canvas ask the backend to arrange its view. Absent for canvases that cannot. */
+export interface Arranger {
+  /** The provider that would read the session, as people know it. */
+  provider: string;
+  supported: boolean;
+  /** The browser demo sends nothing anywhere. */
+  demo: boolean;
+  run(focus: string, revision: number): Promise<unknown>;
+  cancel(): void;
+}
 export function EvidenceCanvas({
   source,
   evidence,
   raw,
   chat,
+  total,
+  arrange,
 }: {
   source: Source;
   evidence: readonly Evidence[];
   raw: string;
   chat: string;
+  /** Records that existed when `evidence` keeps only the latest. */
+  total?: number;
+  arrange?: Arranger;
 }) {
   const [mode, setMode] = useState("Visual");
   const [inspected, setInspected] = useState<string>();
@@ -105,9 +134,25 @@ export function EvidenceCanvas({
     evidence,
     raw,
     chat,
+    total: total ?? evidence.length,
     presentation: compose(source, evidence),
   }));
+  const [arranged, setArranged] = useState<PresentResult>();
+  const [running, setRunning] = useState(false);
+  const [note, setNote] = useState("");
+  const [focus, setFocus] = useState("");
   const scroll = useRef<Record<string, number>>({});
+  // A finished run is ignored when its token is no longer current (cancelled or superseded).
+  const token = useRef(0);
+  const latest = useRef({ arrange, running });
+  latest.current = { arrange, running };
+  // Leaving the canvas must not leave a hidden model call running.
+  useEffect(
+    () => () => {
+      if (latest.current.running) latest.current.arrange?.cancel();
+    },
+    [],
+  );
   // A permission or source identity change must never retain the previous source.
   const differentScope =
     source.projectId !== snapshot.source.projectId ||
@@ -119,17 +164,68 @@ export function EvidenceCanvas({
       evidence,
       raw,
       chat,
+      total: total ?? evidence.length,
       presentation: compose(source, evidence),
     });
     setInspected(undefined);
+    setArranged(undefined);
+    setNote("");
     return null;
   }
   const stale = cacheKey(source) !== cacheKey(snapshot.source);
+  const view = arranged ?? snapshot;
   const valid = validatePresentation(
-    snapshot.presentation,
-    snapshot.source,
-    snapshot.evidence,
+    view.presentation,
+    view.source,
+    view.evidence,
   );
+  const shown = view.presentation.blocks.length;
+  const records = arranged ? arranged.total : snapshot.total;
+  function stop() {
+    token.current++;
+    setRunning(false);
+    setNote("Arranging cancelled.");
+    latest.current.arrange?.cancel();
+  }
+  async function arrangeNow() {
+    if (!arrange || running) return;
+    const mine = ++token.current;
+    const asked = snapshot.source;
+    setRunning(true);
+    setNote("");
+    try {
+      const result = await arrange.run(focus.trim(), Number(asked.revision));
+      if (mine !== token.current) return;
+      if (!validateResult(result, asked))
+        setNote("The arrangement did not match this view, so it was not used.");
+      else if (result.mode === "standard") {
+        setArranged(undefined);
+        setNote(result.reason || "Nothing was arranged.");
+      } else setArranged(result);
+    } catch (e) {
+      if (mine === token.current)
+        setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (mine === token.current) setRunning(false);
+    }
+  }
+  const status = running
+    ? `Arranging with ${arrange?.provider}… this can take up to a minute.`
+    : arranged
+      ? [
+          arranged.mode === "sample"
+            ? "Sample arrangement · no model ran"
+            : `Arranged by ${arranged.provider}${arranged.cached ? " · saved result" : ""}`,
+          arranged.focus && `focus “${arranged.focus}”`,
+          `${shown} of ${arranged.total} records`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : note
+        ? `Standard layout · ${note}`
+        : records > shown
+          ? `Standard layout · latest ${shown} of ${records} records`
+          : "";
   return (
     <section className="canvas" aria-label="Nook Canvas">
       <div className="canvas-toolbar">
@@ -148,7 +244,7 @@ export function EvidenceCanvas({
       </div>
       <p className="help">
         Source revision {snapshot.source.revision} · Recorded evidence ·{" "}
-        {snapshot.evidence.length} records
+        {snapshot.total} records
       </p>
       {stale && (
         <div className="sample-notice" role="status">
@@ -157,19 +253,75 @@ export function EvidenceCanvas({
           <button
             className="secondary"
             onClick={() => {
+              if (running) stop();
               setSnapshot({
                 source,
                 evidence,
                 raw,
                 chat,
+                total: total ?? evidence.length,
                 presentation: compose(source, evidence),
               });
               setInspected(undefined);
+              setArranged(undefined);
+              setNote("");
             }}
           >
             Refresh view
           </button>
         </div>
+      )}
+      {arrange && mode === "Visual" && (
+        <form
+          className="arrange"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void arrangeNow();
+          }}
+        >
+          <label className="arrange-focus">
+            <span>Focus</span>
+            <input
+              value={focus}
+              maxLength={200}
+              disabled={running || !arrange.supported}
+              placeholder="Optional: what should stand out?"
+              onChange={(e) => setFocus(e.target.value)}
+            />
+          </label>
+          {/* Distinct keys: one shared node would flip to type=submit during its own Cancel click. */}
+          {running ? (
+            <button
+              key="cancel"
+              type="button"
+              className="secondary"
+              onClick={stop}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              key="arrange"
+              type="submit"
+              className="secondary"
+              disabled={!arrange.supported}
+            >
+              Arrange with {arrange.provider}
+            </button>
+          )}
+          <p className="arrange-disclosure">
+            {!arrange.supported
+              ? "Arranging is available for Claude Code sessions."
+              : arrange.demo
+                ? "Demo: arranging uses a built-in sample and sends nothing."
+                : `Arranging sends this session's recorded output to ${arrange.provider}, using your existing sign-in, to choose a layout. It can't add content or run anything.`}
+          </p>
+        </form>
+      )}
+      {mode === "Visual" && (
+        <p className="arrange-note" role="status">
+          {status}
+        </p>
       )}
       <div
         className="canvas-body"
@@ -187,21 +339,32 @@ export function EvidenceCanvas({
               This presentation could not be validated. Chat and Raw remain
               available.
             </p>
-          ) : !snapshot.evidence.length ? (
+          ) : arranged && !shown ? (
+            <p className="empty-copy">
+              Nothing in this session matched that focus.
+            </p>
+          ) : !view.evidence.length ? (
             <p className="empty-copy">
               No visual view yet. Recorded output will appear here when
               available.
             </p>
           ) : (
-            snapshot.presentation.blocks.map((block) => {
-              const e = snapshot.evidence.find(
-                (e) => e.id === block.evidenceId,
-              )!;
+            view.presentation.blocks.map((block) => {
+              const e = view.evidence.find((e) => e.id === block.evidenceId)!;
+              const title = e.label
+                ? block.type === "Summary"
+                  ? e.label
+                  : `${e.label} · ${block.type}`
+                : block.type;
               return (
-                <article className="evidence-card" key={block.id}>
+                <article
+                  className="evidence-card"
+                  data-type={block.type}
+                  key={block.id}
+                >
                   <div className="evidence-meta">
                     <span>
-                      {block.type} · {e.attribution}
+                      {title} · {e.attribution}
                     </span>
                     <time>
                       {e.timestamp
@@ -209,7 +372,7 @@ export function EvidenceCanvas({
                         : "No timestamp"}
                     </time>
                   </div>
-                  <EvidenceView evidence={e} />
+                  <EvidenceView evidence={e} type={block.type} />
                   <button
                     className="text-button"
                     onClick={() =>
@@ -244,10 +407,12 @@ export function EvidenceCanvas({
 export function SessionCanvas({
   projectId,
   sessionId,
+  provider,
   events,
 }: {
   projectId: string;
   sessionId: string;
+  provider: string;
   events: readonly SessionEvent[];
 }) {
   const source = useMemo<Source>(
@@ -259,20 +424,30 @@ export function SessionCanvas({
     }),
     [projectId, sessionId, events],
   );
-  const evidence = useMemo(
-    () => sessionEvidence(events, source),
-    [events, source],
+  const built = useMemo(() => buildEvidence(events, source), [events, source]);
+  const arrange = useMemo<Arranger>(
+    () => ({
+      provider: provider === "claude" ? "Claude Code" : provider,
+      supported: provider === "claude",
+      demo,
+      run: (focus, revision) =>
+        api.PresentSession({ sessionId, revision, focus, arrange: true }),
+      cancel: () => void api.CancelPresentation(sessionId).catch(() => {}),
+    }),
+    [provider, sessionId],
   );
   return (
     <EvidenceCanvas
       key={sessionId}
       source={source}
-      evidence={evidence}
+      evidence={built.items}
+      total={built.total}
       raw={JSON.stringify(events, null, 2)}
       chat={events
         .filter((e) => e.kind === "user" || e.kind === "delta")
         .map((e) => (e.kind === "user" ? `\nYou: ${e.text}\n` : e.text))
         .join("")}
+      arrange={arrange}
     />
   );
 }

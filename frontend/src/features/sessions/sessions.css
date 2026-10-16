@@ -1,0 +1,346 @@
+.detail {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(590px, calc(100vw - 260px));
+  background: var(--surface);
+  z-index: 5;
+  box-shadow: -20px 0 60px #1d362b16;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.detail-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 19px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+.detail-top > span {
+  flex: 1;
+}
+.detail-identity {
+  display: flex;
+  gap: 10px;
+  padding: 21px 23px 12px;
+  align-items: center;
+}
+.detail-identity h2 {
+  font-size: 19px;
+  line-height: 1.4;
+  letter-spacing: -0.4px;
+  font-weight: 560;
+  margin: 8px 0;
+}
+.detail-identity p {
+  font-size: 10px;
+  color: var(--muted);
+}
+.detail-actions {
+  display: flex;
+  gap: 15px;
+  padding: 5px 28px 20px;
+}
+.detail-actions > .icon-button {
+  margin-left: auto;
+}
+.detail-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  padding: 0 18px;
+  gap: 7px;
+}
+.detail-tabs button {
+  font-size: 11px;
+  padding: 12px 10px;
+  border-radius: 0;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.detail-tabs button[aria-selected="true"] {
+  color: var(--accent-ink, var(--green));
+  border-bottom-color: var(--accent-ink, var(--green));
+}
+.detail-content {
+  padding: 24px 28px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+.session-intro {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  justify-content: center;
+  margin: 0 0 27px;
+}
+.conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.message {
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message-author {
+  display: block;
+  font-size: 10px;
+  font-weight: 650;
+  margin-bottom: 7px;
+  color: var(--muted);
+}
+.message.user {
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: var(--hover);
+  margin-left: 24px;
+}
+.message.agent {
+  padding: 2px 3px;
+}
+.live-activity {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 23px 0;
+}
+.activity-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6e9e80;
+}
+.composer {
+  margin: 0 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 13px;
+  background: var(--bg);
+}
+.composer textarea {
+  background: transparent;
+  border: 0;
+  resize: vertical;
+  width: 100%;
+  min-height: 70px;
+  max-height: 180px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink);
+  outline: none;
+}
+.composer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.composer span {
+  font-size: 9px;
+  color: var(--muted);
+}
+.send {
+  border-radius: 8px;
+  width: 33px;
+  height: 33px;
+  background: var(--green);
+  color: white;
+}
+.detail-error {
+  margin: 0 25px 12px;
+  background: var(--amber-bg);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--amber);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.approval {
+  border: 1px solid #e5d1a6;
+  border-radius: 11px;
+  background: var(--amber-bg);
+  padding: 17px;
+  margin-top: 22px;
+}
+.approval-kicker {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--amber);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+.approval h3 {
+  font-size: 14px;
+  font-weight: 550;
+  margin: 13px 0;
+}
+.approval pre {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 250px;
+  overflow: auto;
+}
+.approval-actions {
+  display: flex;
+  gap: 9px;
+  margin-top: 15px;
+}
+.approval fieldset {
+  border: 0;
+  padding: 0;
+  margin: 15px 0;
+}
+.approval legend {
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 10px;
+}
+.answer-choice {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 9px !important;
+  margin: 6px 0 !important;
+}
+.activity-list > div {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding: 0 0 23px;
+  font-size: 11px;
+}
+.activity-list strong {
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  display: block;
+}
+.activity-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 4px;
+}
+.timeline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a7b9a5;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.output,
+.diff,
+.file-status {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 14px;
+  border: 1px solid var(--line);
+}
+.changes-toolbar,
+.changes-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+.changes-toolbar strong {
+  font-size: 12px;
+}
+.changes-toolbar > button {
+  margin-left: auto;
+}
+.changes .help {
+  margin-bottom: 15px;
+}
+.context-summary {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--bg);
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.context-summary strong {
+  font-size: 11px;
+}
+.context-summary small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  word-break: break-all;
+  margin-top: 6px;
+}
+.permission-note {
+  font-size: 11px;
+  border-left: 2px solid #93ac95;
+  padding: 2px 0 2px 12px;
+  margin-bottom: 26px;
+}
+.permission-note strong {
+  font-weight: 600;
+}
+.permission-note p {
+  margin-top: 7px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.context-editor h3 {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.context-item > div {
+  flex: 1;
+  min-width: 0;
+}
+.context-item strong {
+  font-weight: 550;
+}
+.context-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 5px;
+  word-break: break-all;
+}

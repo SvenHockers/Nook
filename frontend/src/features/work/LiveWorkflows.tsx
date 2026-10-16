@@ -7,8 +7,6 @@ import type {
   Snapshot,
   WorkflowAction,
   WorkflowArtifact,
-  WorkflowRecord,
-  WorkflowTaskRecord,
 } from "../../types";
 import { EvidenceCanvas } from "../canvas/PresentationCanvas";
 import { sessionEvidence, type Source } from "../canvas/model";

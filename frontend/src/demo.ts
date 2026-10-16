@@ -1,3 +1,4 @@
+import { createPresentationDemo } from "./features/canvas/demoPresent";
 import { createWorkflowDemo } from "./features/work/demoWorkflow";
 import type {
   API,
@@ -92,7 +93,6 @@ export function createDemo(onChange: () => void): API {
     createdAt: new Date(Date.now() - i * 120000).toISOString(),
     updatedAt: new Date().toISOString(),
     archived: false,
-    seen: false,
     capabilities: caps,
   }));
   const data: Snapshot = {
@@ -203,6 +203,7 @@ export function createDemo(onChange: () => void): API {
   );
   const api: API = {
     ...workflow.api,
+    ...createPresentationDemo(sessions, events),
     Snapshot: async () =>
       structuredClone({ ...data, workflows: workflow.snapshot() }),
     AddProject: async () => projects[0],

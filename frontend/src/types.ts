@@ -1,3 +1,4 @@
+import type { PresentRequest, PresentResult } from "./features/canvas/model";
 export type State =
   | "starting"
   | "working"
@@ -54,7 +55,6 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   archived: boolean;
-  seen: boolean;
   capabilities: Capabilities;
 }
 export interface Question {
@@ -166,6 +166,8 @@ export interface Changes {
   truncated: boolean;
 }
 export interface API {
+  PresentSession(request: PresentRequest): Promise<PresentResult>;
+  CancelPresentation(id: string): Promise<void>;
   CreateWorkflow(request: CreateWorkflowRequest): Promise<WorkflowRecord>;
   StartWorkflowTask(request: WorkflowAction): Promise<Session>;
   AcceptWorkflowTask(request: WorkflowAction): Promise<WorkflowRecord>;

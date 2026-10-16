@@ -1,0 +1,32 @@
+[package]
+name = "nook-backend"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Nook's private stdio runtime, owned by the Tauri shell"
+license = "Apache-2.0"
+
+[lib]
+name = "nook"
+
+[dependencies]
+getrandom = "0.3"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+strip = true

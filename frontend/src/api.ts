@@ -18,6 +18,8 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   return invoke<T>("backend_call", { method, args });
 }
 const native: API = {
+  PresentSession: (r) => call("PresentSession", r),
+  CancelPresentation: (id) => call("CancelPresentation", id),
   CreateWorkflow: (r) => call("CreateWorkflow", r),
   StartWorkflowTask: (r) => call("StartWorkflowTask", r),
   AcceptWorkflowTask: (r) => call("AcceptWorkflowTask", r),

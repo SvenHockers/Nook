@@ -1,20 +1,17 @@
+import { Conversation } from "./features/sessions/Conversation";
+import { ApprovalCard } from "./features/sessions/ApprovalCard";
+import { LaunchForm } from "./features/sessions/LaunchForm";
+import { ContextEditor } from "./features/context/ContextEditor";
+import { ChangesView } from "./features/sessions/ChangesView";
+import { Modal } from "./shared/Modal";
 import { LiveWorkflows } from "./features/work/LiveWorkflows";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import {
-  ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   Check,
   ChevronRight,
-  Command,
   Folder,
   FolderOpen,
   GitBranch,
@@ -34,10 +31,8 @@ import {
   X,
   Bell,
   Leaf,
-  FileText,
   Archive,
   RefreshCw,
-  ExternalLink,
   Pencil,
   Users,
   Workflow,
@@ -52,7 +47,6 @@ import { mergeSessionEvents } from "./shared/events";
 import { AvatarPlayground } from "./features/avatars/AvatarPlayground";
 import { SessionCanvas } from "./features/canvas/PresentationCanvas";
 import {
-  WorkflowWorkspace,
   LoopWorkspace,
   ContextWorkspace,
   ActivityWorkspace,
@@ -64,10 +58,6 @@ import {
   type Snapshot,
   type Session,
   type SessionEvent,
-  type Approval,
-  type ContextItem,
-  type Project,
-  type Changes,
 } from "./types";
 const empty: Snapshot = {
   workflows: [],
@@ -112,57 +102,6 @@ const stateLabels: Record<string, string> = {
 };
 const stateClass = (s: Session) => `status status-${s.state}`;
 const shortcutKey = /Mac/.test(navigator.platform) ? "⌘" : "Ctrl";
-function Modal({
-  title,
-  onClose,
-  children,
-  wide = false,
-  error,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-  wide?: boolean;
-  error?: string;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement;
-    ref.current?.showModal();
-    return () => {
-      ref.current?.close();
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      onCancel={onClose}
-      className={wide ? "modal wide" : "modal"}
-      aria-labelledby="dialog-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="modal-heading">
-        <h2 id="dialog-title">{title}</h2>
-        <button
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <X size={19} />
-        </button>
-      </div>
-      {error && (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      )}
-      {children}
-    </dialog>
-  );
-}
 export function App() {
   const [data, setData] = useState(empty),
     [nav, setNav] = useState<Nav>(initial),
@@ -581,7 +520,10 @@ export function App() {
           {["Home", "Agents"].includes(nav.page) && (
             <>
               <div className="page-heading">
-                <div>
+                {nav.page === "Home" && (
+                  <img className="home-mascot" src="/mascot.png" alt="" />
+                )}
+                <div className="page-heading-text">
                   <div className="eyebrow">YOUR IDEAS, IN GOOD COMPANY</div>
                   <h1>
                     {nav.filter === "attention"
@@ -951,6 +893,7 @@ export function App() {
               <SessionCanvas
                 projectId={selected.projectId}
                 sessionId={selected.id}
+                provider={selected.provider}
                 events={history[selected.id] || []}
               />
             )}
@@ -1279,458 +1222,6 @@ export function App() {
           </form>
         </Modal>
       )}
-    </div>
-  );
-}
-function Conversation({ events }: { events: SessionEvent[] }) {
-  const messages: { id: string; role: string; text: string }[] = [];
-  for (const e of events) {
-    if (e.kind === "user")
-      messages.push({
-        id: e.itemId || String(e.sequence),
-        role: "user",
-        text: e.text,
-      });
-    if (e.kind === "delta") {
-      const last = messages.at(-1);
-      if (last?.id === e.itemId && last.role === "agent") last.text += e.text;
-      else
-        messages.push({
-          id: e.itemId || String(e.sequence),
-          role: "agent",
-          text: e.text,
-        });
-    }
-  }
-  return (
-    <div className="conversation">
-      {messages.map((m, i) => (
-        <div key={m.id + i} className={"message " + m.role}>
-          <span className="message-author">
-            {m.role === "user" ? "You" : "Your agent"}
-          </span>
-          <div>{m.text}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-function ApprovalCard({
-  approval: a,
-  answer,
-  disabled,
-}: {
-  approval: Approval;
-  answer: (r: Parameters<typeof api.Respond>[0]) => Promise<unknown>;
-  disabled: boolean;
-}) {
-  const [answers, setAnswers] = useState<Record<string, string[]>>({});
-  return (
-    <div className="approval">
-      <span className="approval-kicker">
-        <MessageCircle size={15} />A LITTLE INPUT FROM YOU
-      </span>
-      <h3>{a.title}</h3>
-      {a.detail && <pre>{a.detail}</pre>}
-      {a.questions?.map((q) => (
-        <fieldset key={q.id}>
-          <legend>{q.text}</legend>
-          {q.options.map((o) => (
-            <label className="answer-choice" key={o}>
-              <input
-                type={q.multi ? "checkbox" : "radio"}
-                name={a.id + q.id}
-                checked={answers[q.id]?.includes(o) || false}
-                onChange={(e) =>
-                  setAnswers({
-                    ...answers,
-                    [q.id]: q.multi
-                      ? e.target.checked
-                        ? [...(answers[q.id] || []), o]
-                        : (answers[q.id] || []).filter((v) => v !== o)
-                      : [o],
-                  })
-                }
-              />
-              {o}
-            </label>
-          ))}
-          <input
-            aria-label={"Custom answer: " + q.text}
-            placeholder="Or write your own answer…"
-            value={(answers[q.id] || [])
-              .filter((v) => !q.options.includes(v))
-              .join(", ")}
-            onChange={(e) =>
-              setAnswers({
-                ...answers,
-                [q.id]: e.target.value ? [e.target.value] : [],
-              })
-            }
-          />
-        </fieldset>
-      ))}
-      <div className="approval-actions">
-        {a.decisions.map((d) => (
-          <button
-            key={d}
-            disabled={
-              disabled ||
-              (d === "answer" &&
-                a.questions.some((q) => !answers[q.id]?.length))
-            }
-            className={
-              ["accept", "answer"].includes(d) ? "primary" : "secondary"
-            }
-            onClick={() =>
-              answer({
-                sessionId: a.sessionId,
-                requestId: a.id,
-                decision: d,
-                answers,
-              })
-            }
-          >
-            {(
-              {
-                accept: "Allow once",
-                decline: "Decline",
-                answer: "Send answer",
-                cancel: "Cancel turn",
-              } as Record<string, string>
-            )[d] || d}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-function LaunchForm({
-  data,
-  project,
-  pending,
-  submit,
-  add,
-}: {
-  data: Snapshot;
-  project: string;
-  pending: boolean;
-  submit: (r: Parameters<typeof api.Launch>[0]) => Promise<void>;
-  add: () => Promise<unknown>;
-}) {
-  const [pid, setPid] = useState(
-      project === "all" ? data.projects[0]?.id || "" : project,
-    ),
-    [provider, setProvider] = useState(
-      data.providers.find((p) => p.available)?.id || "codex",
-    ),
-    [shared, setShared] = useState(false);
-  const p = data.projects.find((p) => p.id === pid);
-  useEffect(() => {
-    if (!pid && data.projects[0]) setPid(data.projects[0].id);
-  }, [data.projects, pid]);
-  return (
-    <form
-      onSubmit={(e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const f = new FormData(e.currentTarget);
-        submit({
-          projectId: pid,
-          provider,
-          title: String(f.get("title") || ""),
-          prompt: String(f.get("prompt") || ""),
-          shared,
-        });
-      }}
-    >
-      <p className="modal-subtitle">
-        Pick a collaborator. Point them toward something worth doing.
-      </p>
-      <label>
-        Project
-        <select value={pid} onChange={(e) => setPid(e.target.value)} required>
-          <option value="" disabled>
-            Choose a project
-          </option>
-          {data.projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {!data.projects.length && (
-        <button type="button" className="secondary" onClick={add}>
-          <Plus size={15} />
-          Open a project
-        </button>
-      )}
-      <label>Agent</label>
-      <div className="agent-picker">
-        {data.providers.map((p) => (
-          <button
-            type="button"
-            key={p.id}
-            className={provider === p.id ? "chosen" : ""}
-            disabled={!p.available}
-            onClick={() => setProvider(p.id)}
-          >
-            <span className={"provider-glyph " + p.id}>
-              {p.id === "claude" ? "✳" : "◈"}
-            </span>
-            <strong>{p.name}</strong>
-            <small>
-              {p.available
-                ? "Your installed agent"
-                : "Setup needed in Settings"}
-            </small>
-            {provider === p.id && <Check size={16} />}
-          </button>
-        ))}
-      </div>
-      <label>
-        What are we working on?
-        <textarea
-          name="prompt"
-          rows={4}
-          placeholder="Describe an idea, ask a question, or hand over a task…"
-          required
-          maxLength={100000}
-        />
-      </label>
-      <label>
-        A name for this task <span className="optional">optional</span>
-        <input
-          name="title"
-          placeholder="A short name to find it later"
-          maxLength={120}
-        />
-      </label>
-      {p?.git ? (
-        <div className="worktree-choice">
-          <label className="checkbox-line">
-            <input
-              type="checkbox"
-              checked={!shared}
-              onChange={(e) => setShared(!e.target.checked)}
-            />
-            Give this agent a separate worktree
-          </label>
-          <p>
-            {shared
-              ? "Agents in the shared folder can edit the same files at the same time."
-              : "Starts from the current committed HEAD. Uncommitted edits are not copied. Your original folder stays separate."}
-          </p>
-        </div>
-      ) : (
-        <p className="help">
-          This agent will use the project folder. Concurrent agents can edit the
-          same files.
-        </p>
-      )}
-      <p className="help">
-        Opening an agent trusts this project’s provider configuration, hooks,
-        and instructions. Review unfamiliar projects first.
-      </p>
-      <button
-        className="primary full"
-        disabled={
-          pending ||
-          !pid ||
-          !data.providers.some((p) => p.id === provider && p.available)
-        }
-      >
-        {pending ? (
-          <LoaderCircle size={16} className="spin" />
-        ) : (
-          <Plus size={17} />
-        )}
-        Let’s get started
-      </button>
-    </form>
-  );
-}
-function ContextEditor({
-  items,
-  save,
-}: {
-  items: ContextItem[];
-  save: (items: ContextItem[]) => Promise<unknown>;
-}) {
-  const [kind, setKind] = useState<ContextItem["kind"]>("note"),
-    [name, setName] = useState(""),
-    [value, setValue] = useState(""),
-    [error, setError] = useState("");
-  return (
-    <div className="context-editor">
-      <h3>Shared with this agent</h3>
-      <p className="help">
-        Changes apply to the next message. Removing an item cannot erase
-        information already sent.
-      </p>
-      {items.map((item, i) => (
-        <div className="context-item" key={item.id}>
-          <input
-            type="checkbox"
-            aria-label={"Include " + item.name}
-            checked={item.enabled}
-            onChange={() =>
-              save(
-                items.map((c, j) =>
-                  j === i ? { ...c, enabled: !c.enabled } : c,
-                ),
-              )
-            }
-          />
-          <FileText size={17} />
-          <div>
-            <strong>{item.name}</strong>
-            <small>{item.kind === "note" ? "Project note" : item.value}</small>
-          </div>
-          <button
-            className="icon-button"
-            aria-label={"Remove " + item.name}
-            onClick={() => save(items.filter((_, j) => j !== i))}
-          >
-            <X size={15} />
-          </button>
-        </div>
-      ))}
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const saved = await save([
-            ...items,
-            {
-              id: crypto.randomUUID(),
-              kind,
-              name: name.trim() || value.split(/[\\/]/).at(-1) || "Reference",
-              value,
-              enabled: true,
-            },
-          ]);
-          if (saved) {
-            setName("");
-            setValue("");
-          }
-        }}
-      >
-        <label>
-          Add context
-          <select
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value as ContextItem["kind"]);
-              setValue("");
-            }}
-          >
-            <option value="note">A project note</option>
-            <option value="file">A text file</option>
-            <option value="folder">A reference folder</option>
-          </select>
-        </label>
-        <label>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="What should we call it?"
-          />
-        </label>
-        {kind === "note" ? (
-          <label>
-            Note
-            <textarea
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              rows={4}
-              required
-              maxLength={100000}
-            />
-          </label>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="secondary"
-              onClick={async () => {
-                try {
-                  const p = await api.ChooseContext(kind);
-                  if (p) setValue(p);
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-            >
-              <FolderOpen size={15} />
-              Choose {kind}
-            </button>
-            <p className="path help">{value || "Nothing selected yet"}</p>
-          </>
-        )}
-        {error && <p role="alert">{error}</p>}
-        <button className="secondary" disabled={!value.trim()}>
-          <Plus size={15} />
-          Add context
-        </button>
-      </form>
-    </div>
-  );
-}
-function ChangesView({
-  id,
-  run,
-}: {
-  id: string;
-  run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
-}) {
-  const [changes, setChanges] = useState<Changes>(),
-    [error, setError] = useState("");
-  const load = () =>
-    api
-      .Changes(id)
-      .then(setChanges)
-      .catch((e) => setError(String(e)));
-  useEffect(() => {
-    load();
-  }, [id]);
-  return (
-    <div className="changes">
-      <div className="changes-toolbar">
-        <strong>Work in this checkout</strong>
-        <button
-          className="icon-button"
-          aria-label="Refresh changes"
-          onClick={load}
-        >
-          <RefreshCw size={16} />
-        </button>
-      </div>
-      <p className="help">
-        Compared with this session’s starting commit. Untracked files are listed
-        but are not included in the patch.
-      </p>
-      <div className="changes-buttons">
-        <button
-          className="secondary"
-          onClick={() => run(() => api.ExportPatch(id))}
-        >
-          <ArrowDownToLine size={15} />
-          Export patch
-        </button>
-        <button
-          className="text-button"
-          onClick={() => run(() => api.Reveal(id))}
-        >
-          <ExternalLink size={14} />
-          Open folder
-        </button>
-      </div>
-      {error && <p role="alert">{error}</p>}
-      <pre className="file-status">
-        {changes?.status || "No changed files."}
-      </pre>
-      <pre className="diff">{changes?.diff || "No tracked changes yet."}</pre>
     </div>
   );
 }

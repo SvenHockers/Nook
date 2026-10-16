@@ -14,3 +14,7 @@ src-tauri/binaries/nook-backend-*
 src-tauri/gen/
 frontend/*.tsbuildinfo
 .idea/
+
+backend/target/
+
+.claude/worktrees/

@@ -1,0 +1,3 @@
+# The sidecar ships without a Visual C++ runtime dependency, like the Go binary it replaced.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

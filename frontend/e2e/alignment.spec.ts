@@ -12,7 +12,7 @@ test("workflow dependencies and handoff retain inspectable source", async ({
     .getByRole("button", { name: "Explore workflow reference example" })
     .click();
   await expect(
-    page.getByText("Workflows runtime is not connected"),
+    page.getByText("Workflow reference example"),
   ).toBeVisible();
   await page.getByRole("button", { name: "Explore example" }).click();
   await page.getByRole("button", { name: "Dependencies", exact: true }).click();

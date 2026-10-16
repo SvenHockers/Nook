@@ -29,10 +29,12 @@ jobs:
       - name: Verify Apple Silicon
         if: inputs.platform == 'macOS-ARM64'
         run: test "$(uname -m)" = arm64
+      - uses: dtolnay/rust-toolchain@1.93.0
       - name: Runtime and process checks
-        run: go test -race ./...
+        working-directory: backend
+        run: cargo test --locked
       - name: Signed-in provider launch and resume
-        run: go run ./cmd/nook-check --live --provider ${{ inputs.provider }} --report validation.json
+        run: cargo run --locked --manifest-path backend/Cargo.toml --bin nook-check -- --live --provider ${{ inputs.provider }} --report validation.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

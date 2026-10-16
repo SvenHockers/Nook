@@ -45,7 +45,9 @@ function SampleGate({
           <strong>
             {show
               ? "Simulated example · no live execution"
-              : `${kind} runtime is not connected`}
+              : kind === "Workflows"
+                ? "Workflow reference example"
+                : `${kind} runtime is not connected`}
           </strong>
           <p>
             {show

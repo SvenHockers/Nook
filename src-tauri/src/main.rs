@@ -70,6 +70,8 @@ const METHODS: &[&str] = &[
     "StartWorkflowTask",
     "AcceptWorkflowTask",
     "WorkflowEvidence",
+    "PresentSession",
+    "CancelPresentation",
     "Send",
     "Stop",
     "Respond",

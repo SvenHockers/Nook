@@ -1,0 +1,231 @@
+.modal {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 25px 100px #16291e30;
+  max-width: 530px;
+  width: calc(100vw - 50px);
+  padding: 27px 30px;
+  max-height: 90vh;
+  overflow: auto;
+}
+.modal.wide {
+  max-width: 610px;
+}
+.modal::backdrop {
+  background: #24382d50;
+  backdrop-filter: blur(3px);
+}
+.modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+.modal-heading h2 {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  letter-spacing: -0.6px;
+  font-weight: 400;
+}
+.modal-subtitle {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-bottom: 22px;
+}
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 550;
+  margin: 15px 0 8px;
+}
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 11px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  width: 100%;
+  margin-top: 7px;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent-ink, var(--green));
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.search-box input {
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  font-size: 10px !important;
+}
+textarea {
+  resize: vertical;
+}
+select {
+  appearance: auto;
+}
+.optional {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 5px;
+}
+.agent-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.agent-picker > button {
+  border: 1px solid var(--line);
+  padding: 16px 13px;
+  display: grid;
+  grid-template-columns: 24px 1fr 16px;
+  text-align: left;
+  gap: 7px;
+}
+.agent-picker strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.agent-picker small {
+  grid-row: 2;
+  grid-column: 2/4;
+  font-size: 9px;
+  color: var(--muted);
+}
+.agent-picker svg {
+  grid-column: 3;
+  grid-row: 1;
+}
+.agent-picker .chosen,
+.theme-options .chosen {
+  background: var(--green-soft);
+  border-color: #92b09a;
+}
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.worktree-choice {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 12px 14px;
+  margin: 18px 0;
+}
+.worktree-choice .checkbox-line {
+  margin: 0;
+}
+.worktree-choice p {
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 8px 0 0 24px;
+}
+.help {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.full {
+  width: 100%;
+  margin-top: 20px;
+}
+.settings-section {
+  margin-top: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-section h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.theme-options button {
+  border: 1px solid var(--line);
+  padding: 19px 12px;
+  font-size: 11px;
+  text-transform: capitalize;
+  gap: 9px;
+}
+.provider-setting {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px 0 10px;
+}
+.provider-setting > div {
+  flex: 1;
+  min-width: 0;
+}
+.provider-setting strong {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.provider-setting small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.installed,
+.not-installed {
+  font-size: 8px;
+  background: var(--green-soft);
+  color: var(--accent-ink, var(--green));
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.not-installed {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.path {
+  overflow-wrap: anywhere;
+}
+.settings-footer {
+  display: block;
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 2.2;
+  padding: 22px 0 0;
+}
+.settings-footer svg {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

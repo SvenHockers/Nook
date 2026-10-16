@@ -19,6 +19,8 @@ export interface Evidence {
   revision: string;
   timestamp: string;
   attribution: "recorded" | "agent-reported" | "sample";
+  /** Who or what the record is ("You", "Agent", "Approval"); examples without one show the component name. */
+  label?: string;
   data: EvidenceData;
 }
 export interface Source {
@@ -48,13 +50,36 @@ export interface PresentationBlock {
   type: ComponentType;
   evidenceId: string;
 }
+/** "deterministic-1" is the standard layout; "agent-1" was arranged by a model choosing blocks only. */
+export type TemplateVersion = "deterministic-1" | "agent-1";
 export interface Presentation {
   schemaVersion: "nook.presentation.v1";
   catalogVersion: "1";
   source: Source;
-  templateVersion: "deterministic-1";
+  templateVersion: TemplateVersion;
   generatedAt: string;
   blocks: PresentationBlock[];
+}
+/** The wire contract with the backend's PresentSession, mirrored in backend/src/presentation.rs. */
+export interface PresentRequest {
+  sessionId: string;
+  revision: number;
+  focus: string;
+  arrange: boolean;
+}
+export interface PresentResult {
+  source: Source;
+  evidence: Evidence[];
+  /** Records that existed; `evidence` keeps only the latest. */
+  total: number;
+  presentation: Presentation;
+  /** "sample" is the browser demo, which never calls a model. */
+  mode: "standard" | "model" | "sample";
+  provider: string;
+  focus: string;
+  /** Why a requested arrangement was not used. */
+  reason: string;
+  cached: boolean;
 }
 export function cacheKey(source: Source) {
   return JSON.stringify([
@@ -88,7 +113,7 @@ export function validatePresentation(
     ]) ||
     value.schemaVersion !== "nook.presentation.v1" ||
     value.catalogVersion !== "1" ||
-    value.templateVersion !== "deterministic-1" ||
+    !["deterministic-1", "agent-1"].includes(value.templateVersion as string) ||
     typeof value.generatedAt !== "string"
   )
     return false;
@@ -125,21 +150,137 @@ export function validatePresentation(
     );
   });
 }
-export function sessionEvidence(
+export const MAX_EVIDENCE = 200;
+export const STANDARD_BLOCKS = 40;
+const EVIDENCE_TEXT = 8 * 1024;
+const eventKinds: Record<
+  string,
+  { label: string; attribution: Evidence["attribution"] }
+> = {
+  user: { label: "You", attribution: "recorded" },
+  delta: { label: "Agent", attribution: "agent-reported" },
+  approval: { label: "Approval", attribution: "recorded" },
+  completed: { label: "Status", attribution: "recorded" },
+  stopped: { label: "Status", attribution: "recorded" },
+  error: { label: "Problem", attribution: "recorded" },
+  disconnected: { label: "Problem", attribution: "recorded" },
+};
+/**
+ * Mirrors build_evidence in backend/src/presentation.rs: only conversation, approvals and outcomes
+ * count (process identities and progress chatter do not), and the chunks of one streamed message
+ * become one record, identified by its first event. Keeps the latest MAX_EVIDENCE of `total`.
+ */
+export function buildEvidence(
   events: readonly SessionEvent[],
   source: Source,
-): Evidence[] {
-  return events
-    .filter((e) => e.sessionId === source.id && e.kind !== "provider_id")
-    .map((e) => ({
+): { items: Evidence[]; total: number } {
+  const out: Evidence[] = [];
+  const streams = new Map<string, Evidence>();
+  for (const e of events) {
+    if (e.sessionId !== source.id || !Object.hasOwn(eventKinds, e.kind))
+      continue;
+    const { label, attribution } = eventKinds[e.kind];
+    const text =
+      e.kind === "approval"
+        ? e.approval?.detail
+          ? `${e.approval.title}\n${e.approval.detail}`
+          : (e.approval?.title ?? "")
+        : e.text;
+    const stream = e.kind === "delta" && e.itemId ? e.itemId : "";
+    const joined = streams.get(stream);
+    if (stream && joined) {
+      // Blank chunks are line breaks inside a message, so they still join it.
+      if (joined.data.kind === "text") joined.data.text += text;
+      continue;
+    }
+    if (!text.trim()) continue;
+    const item: Evidence = {
       id: `${source.id}:${e.sequence}`,
       projectId: source.projectId,
       sourceId: source.id,
       revision: source.revision,
       timestamp: e.time,
-      attribution: e.kind === "delta" ? "agent-reported" : "recorded",
-      data: { kind: "text", text: e.text || e.approval?.title || e.kind },
-    }));
+      attribution,
+      label,
+      data: { kind: "text", text },
+    };
+    if (stream) streams.set(stream, item);
+    out.push(item);
+  }
+  for (const e of out)
+    if (e.data.kind === "text" && e.data.text.length > EVIDENCE_TEXT)
+      e.data.text = e.data.text.slice(0, EVIDENCE_TEXT) + "\n[Truncated]";
+  return { items: out.slice(-MAX_EVIDENCE), total: out.length };
+}
+export function sessionEvidence(
+  events: readonly SessionEvent[],
+  source: Source,
+): Evidence[] {
+  return buildEvidence(events, source).items;
+}
+const isText = (v: unknown) => typeof v === "string";
+const listOf = (v: unknown, ok: (x: unknown) => boolean) =>
+  Array.isArray(v) && v.every(ok);
+function sound(v: unknown): v is Evidence {
+  if (!record(v) || !isText(v.id) || !record(v.data)) return false;
+  const d = v.data;
+  switch (d.kind) {
+    case "text":
+      return isText(d.text);
+    case "metric":
+      return Number.isFinite(d.value) && isText(d.unit);
+    case "table":
+      return (
+        listOf(d.columns, isText) &&
+        listOf(d.rows, (r) => listOf(r, isText))
+      );
+    case "series":
+      return (
+        isText(d.unit) &&
+        listOf(
+          d.values,
+          (x) => record(x) && isText(x.label) && Number.isFinite(x.value),
+        )
+      );
+    case "tests":
+      return listOf(
+        d.checks,
+        (x) => record(x) && isText(x.name) && isText(x.result),
+      );
+    case "edges":
+      return listOf(
+        d.edges,
+        (x) =>
+          record(x) && isText(x.from) && isText(x.to) && isText(x.relation),
+      );
+    default:
+      return false;
+  }
+}
+/** The second gate for a backend result: it must be about exactly the source that was asked for. */
+export function validateResult(
+  value: unknown,
+  expected: Source,
+): value is PresentResult {
+  return (
+    record(value) &&
+    record(value.source) &&
+    Object.entries(expected).every(
+      ([k, v]) => (value.source as Record<string, unknown>)[k] === v,
+    ) &&
+    listOf(value.evidence, sound) &&
+    typeof value.total === "number" &&
+    ["standard", "model", "sample"].includes(value.mode as string) &&
+    isText(value.provider) &&
+    isText(value.focus) &&
+    isText(value.reason) &&
+    typeof value.cached === "boolean" &&
+    validatePresentation(
+      value.presentation,
+      expected,
+      value.evidence as Evidence[],
+    )
+  );
 }
 export function compose(
   source: Source,
@@ -152,7 +293,7 @@ export function compose(
     templateVersion: "deterministic-1",
     generatedAt: new Date().toISOString(),
     blocks: evidence
-      .slice(-40)
+      .slice(-STANDARD_BLOCKS)
       .map((e) => ({
         id: e.id,
         evidenceId: e.id,

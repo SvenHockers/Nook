@@ -24,9 +24,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.27.2"
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -39,13 +36,17 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            backend
+            src-tauri
       - run: npm ci
       - run: npm ci --prefix frontend
-      - name: Go checks and process contract tests
+      - name: Backend checks and process contract tests
+        working-directory: backend
         run: |
-          go vet ./...
-          go test -race ./...
+          cargo fmt --check
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
       - name: Frontend checks
         run: |
           npm run build --prefix frontend
@@ -55,7 +56,7 @@ jobs:
         run: npx playwright install chromium webkit
       - name: UI and accessibility
         run: npm run test:e2e --prefix frontend
-      - name: Build Go runtime
+      - name: Build Rust runtime
         run: npm run desktop:prepare
       - name: Desktop runtime contract
         run: node scripts/sidecar-smoke.mjs ${{ matrix.backend }}

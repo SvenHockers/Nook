@@ -1,0 +1,233 @@
+[data-theme="dark"] {
+  --bg: #202722;
+  --surface: #28312a;
+  --sidebar: #1c241e;
+  --ink: #e6ede2;
+  --muted: #a1ada0;
+  --line: #3a463b;
+  --green: #487c61;
+  --accent-ink: #c2dfca;
+  --green-soft: #354b39;
+  --hover: #303d32;
+  --amber: #d6b772;
+  --amber-bg: #3a3425;
+  --shadow: 0 10px 35px #0002;
+}
+[data-theme="dark"] .filters button.active {
+  background: #354b39;
+}
+[data-theme="dark"] .filters button span {
+  background: #3e4d3c;
+  color: #b2c2ae;
+}
+[data-theme="dark"] .attention-banner {
+  border-color: #5e5034;
+}
+[data-theme="dark"] .attention-banner strong,
+[data-theme="dark"] .banner-cta {
+  color: #dfc58e;
+}
+[data-theme="dark"] .attention-banner small {
+  color: #c0ac83;
+}
+[data-theme="dark"] .attention-symbol {
+  background: #50462e;
+  color: #dfc58e;
+}
+[data-theme="dark"] .avatar-stage {
+  background: radial-gradient(ellipse at center, #44534155, transparent 65%);
+}
+[data-theme="dark"] .status {
+  background: #374b3a;
+  color: #bbd3b7;
+}
+[data-theme="dark"] .status-waiting {
+  background: #4e4328;
+  color: #e8ce8b;
+}
+[data-theme="dark"] .status-stopped {
+  background: #394139;
+  color: #bac2b6;
+}
+[data-theme="dark"] .status-failed,
+[data-theme="dark"] .status-disconnected {
+  background: #4c3730;
+  color: #edb1a1;
+}
+[data-theme="dark"] .eyebrow {
+  color: #98af99;
+}
+[data-theme="dark"] .approval {
+  border-color: #655231;
+}
+[data-theme="dark"] .add-agent-card {
+  border-color: #465440;
+}
+[data-theme="dark"] .provider-label {
+  color: #a9b4a5;
+}
+[data-theme="dark"] .board-footer {
+  color: #a1ad99;
+}
+[data-theme="dark"] .profile-circle {
+  background: #635b49;
+  color: #f2e8cd;
+}
+[data-theme="dark"] .workspace-initial {
+  background: #5e503e;
+  color: #edd5b5;
+}
+[data-theme="dark"] .error-banner {
+  background: #483129;
+  color: #ecc3b2;
+  border-color: #73503f;
+}
+@media (min-width: 1600px) {
+  .agent-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1150px) {
+  .sidebar {
+    width: 210px;
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+  .main {
+    margin-left: 210px;
+  }
+  .main-content {
+    padding: 34px 25px 20px;
+  }
+  .topbar {
+    padding: 0 25px;
+  }
+  h1 {
+    font-size: 29px;
+  }
+  .agent-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .board-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    margin-left: auto;
+  }
+  .detail {
+    width: min(570px, calc(100vw - 215px));
+  }
+}
+@media (max-width: 760px) {
+  .sidebar {
+    width: 66px;
+    padding: 20px 8px;
+  }
+  .brand {
+    font-size: 0;
+    padding: 0;
+  }
+  .brand-mark {
+    font-size: 20px;
+  }
+  .brand-dot,
+  .workspace-switch,
+  .sidebar-label,
+  .project-nav,
+  .little-note,
+  .local-label,
+  .shortcut {
+    display: none;
+  }
+  .nav-item {
+    font-size: 0;
+    padding: 13px;
+  }
+  .nav-item .count {
+    position: absolute;
+    right: 1px;
+    font-size: 8px;
+    min-width: 14px;
+    height: 14px;
+  }
+  .sidebar nav {
+    margin-top: 28px;
+  }
+  .main {
+    margin-left: 66px;
+  }
+  .topbar {
+    padding: 0 20px;
+    height: 60px;
+  }
+  .main-content {
+    padding: 26px 20px;
+  }
+  .page-heading {
+    align-items: flex-start;
+  }
+  .page-heading h1 {
+    font-size: 27px;
+  }
+  .page-heading p {
+    line-height: 1.7;
+  }
+  .new-agent {
+    font-size: 0;
+    gap: 0;
+    padding: 12px;
+  }
+  .agent-grid {
+    grid-template-columns: 1fr;
+  }
+  .banner-cta {
+    font-size: 0;
+  }
+  .detail {
+    width: calc(100vw - 66px);
+  }
+  .detail-tabs {
+    gap: 0;
+    padding: 0 8px;
+  }
+  .detail-tabs button {
+    padding: 12px 7px;
+    font-size: 10px;
+  }
+  .demo-label {
+    max-width: 120px;
+    font-size: 8px;
+  }
+  .board-footer > span:last-child {
+    display: none;
+  }
+  .attention-banner {
+    padding: 12px;
+  }
+  .detail-content {
+    padding: 20px;
+  }
+  .theme-options {
+    gap: 6px;
+  }
+  .theme-options button {
+    padding: 12px 8px;
+  }
+  .theme-options svg {
+    width: 16px;
+  }
+  .modal {
+    padding: 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
