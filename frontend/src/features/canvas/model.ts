@@ -54,7 +54,7 @@ export interface PresentationBlock {
 export type TemplateVersion = "deterministic-1" | "agent-1";
 export interface Presentation {
   schemaVersion: "nook.presentation.v1";
-  catalogVersion: "1";
+  catalogVersion: "2";
   source: Source;
   templateVersion: TemplateVersion;
   generatedAt: string;
@@ -88,7 +88,7 @@ export function cacheKey(source: Source) {
     source.revision,
     source.permissionScope,
     "nook.presentation.v1",
-    "1",
+    "2",
     "deterministic-1",
   ]);
 }
@@ -112,7 +112,7 @@ export function validatePresentation(
       "blocks",
     ]) ||
     value.schemaVersion !== "nook.presentation.v1" ||
-    value.catalogVersion !== "1" ||
+    value.catalogVersion !== "2" ||
     !["deterministic-1", "agent-1"].includes(value.templateVersion as string) ||
     typeof value.generatedAt !== "string"
   )
@@ -177,8 +177,23 @@ export function buildEvidence(
   const out: Evidence[] = [];
   const streams = new Map<string, Evidence>();
   for (const e of events) {
-    if (e.sessionId !== source.id || !Object.hasOwn(eventKinds, e.kind))
+    if (e.sessionId !== source.id) continue;
+    if (e.kind === "evidence" || e.kind === "check") {
+      (e.recorded ?? []).forEach((r, i) =>
+        out.push({
+          id: `${source.id}:${e.sequence}:${i}`,
+          projectId: source.projectId,
+          sourceId: source.id,
+          revision: source.revision,
+          timestamp: e.time,
+          attribution: "recorded",
+          label: r.label,
+          data: structuredClone(r.data),
+        }),
+      );
       continue;
+    }
+    if (!Object.hasOwn(eventKinds, e.kind)) continue;
     const { label, attribution } = eventKinds[e.kind];
     const text =
       e.kind === "approval"
@@ -208,8 +223,15 @@ export function buildEvidence(
     out.push(item);
   }
   for (const e of out)
-    if (e.data.kind === "text" && e.data.text.length > EVIDENCE_TEXT)
-      e.data.text = e.data.text.slice(0, EVIDENCE_TEXT) + "\n[Truncated]";
+    if (e.data.kind === "text") {
+      const bytes = new TextEncoder().encode(e.data.text);
+      if (bytes.length > EVIDENCE_TEXT) {
+        let end = EVIDENCE_TEXT;
+        while ((bytes[end] & 0xc0) === 0x80) end--;
+        e.data.text =
+          new TextDecoder().decode(bytes.slice(0, end)) + "\n[Truncated]";
+      }
+    }
   return { items: out.slice(-MAX_EVIDENCE), total: out.length };
 }
 export function sessionEvidence(
@@ -231,8 +253,7 @@ function sound(v: unknown): v is Evidence {
       return Number.isFinite(d.value) && isText(d.unit);
     case "table":
       return (
-        listOf(d.columns, isText) &&
-        listOf(d.rows, (r) => listOf(r, isText))
+        listOf(d.columns, isText) && listOf(d.rows, (r) => listOf(r, isText))
       );
     case "series":
       return (
@@ -288,16 +309,16 @@ export function compose(
 ): Presentation {
   return {
     schemaVersion: "nook.presentation.v1",
-    catalogVersion: "1",
+    catalogVersion: "2",
     source,
     templateVersion: "deterministic-1",
     generatedAt: new Date().toISOString(),
-    blocks: evidence
-      .slice(-STANDARD_BLOCKS)
-      .map((e) => ({
-        id: e.id,
-        evidenceId: e.id,
-        type: (
+    blocks: evidence.slice(-STANDARD_BLOCKS).map((e) => ({
+      id: e.id,
+      evidenceId: e.id,
+      type:
+        nativeComponent(e) ??
+        (
           {
             text: "Summary",
             metric: "Metric",
@@ -307,6 +328,18 @@ export function compose(
             edges: "DependencyGraph",
           } as const
         )[e.data.kind],
-      })),
+    })),
   };
+}
+
+function nativeComponent(e: Evidence): ComponentType | undefined {
+  if (e.attribution !== "recorded") return undefined;
+  const labels: Record<string, ComponentType> = {
+    "Changed files": "FileChangeList",
+    "Code changes": "CodeDiff",
+    "Session timeline": "TaskTimeline",
+    "Accepted handoffs": "HandoffTrace",
+    "Check output": "TerminalExcerpt",
+  };
+  return Object.hasOwn(labels, e.label ?? "") ? labels[e.label!] : undefined;
 }

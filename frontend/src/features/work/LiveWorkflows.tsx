@@ -1,29 +1,31 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Plus, ArrowRight, GitBranch, Check } from "lucide-react";
 import { api, demo } from "../../api";
 import { Avatar } from "../../Avatar";
-import type {
-  CreateWorkflowRequest,
-  Snapshot,
-  WorkflowAction,
-  WorkflowArtifact,
-} from "../../types";
+import type { Snapshot, WorkflowAction, WorkflowArtifact } from "../../types";
 import { EvidenceCanvas } from "../canvas/PresentationCanvas";
 import { sessionEvidence, type Source } from "../canvas/model";
+import { WorkflowForm } from "./WorkflowForm";
+import { active } from "../../types";
 import { WorkflowWorkspace } from "./Workspaces";
 
 export function LiveWorkflows({
   data,
   refresh,
   openSession,
+  initial,
 }: {
+  initial?: { workflowId: string; taskId: string };
   data: Snapshot;
   refresh: () => Promise<void>;
   openSession: (id: string) => void;
 }) {
-  const [selected, setSelected] = useState(""),
-    [taskID, setTaskID] = useState(""),
+  const [selected, setSelected] = useState(initial?.workflowId || ""),
+    [taskID, setTaskID] = useState(initial?.taskId || ""),
     [creating, setCreating] = useState(false),
+    [editing, setEditing] = useState(false),
+    [showArchived, setShowArchived] = useState(false),
+    [reason, setReason] = useState(""),
     [examples, setExamples] = useState(false);
   const [pending, setPending] = useState(false),
     [error, setError] = useState(""),
@@ -31,7 +33,9 @@ export function LiveWorkflows({
     [confirm, setConfirm] = useState(false),
     [shared, setShared] = useState(false);
   const [tab, setTab] = useState("Team");
-  const workflows = data.workflows || [],
+  const workflows = (data.workflows || []).filter(
+      (w) => w.archived === showArchived,
+    ),
     w = workflows.find((w) => w.id === selected) || workflows[0];
   const task = w?.tasks.find((t) => t.id === taskID) || w?.tasks[0];
   const session = data.sessions.find((s) => s.id === task?.sessionId),
@@ -57,12 +61,17 @@ export function LiveWorkflows({
   });
   const choose = (id: string) => {
     setTaskID(id);
+    setReason("");
+    setEditing(false);
     setEvidence(undefined);
     setConfirm(false);
     setShared(false);
   };
   const validEvidence =
-    evidence && evidence.workflowId === w?.id && evidence.taskId === task?.id
+    evidence &&
+    evidence.workflowId === w?.id &&
+    evidence.taskId === task?.id &&
+    evidence.sessionId === task?.sessionId
       ? evidence
       : undefined;
   return (
@@ -96,6 +105,41 @@ export function LiveWorkflows({
           {error}
         </div>
       )}
+      <label className="checkbox-line">
+        <input
+          type="checkbox"
+          checked={showArchived}
+          onChange={(e) => {
+            setShowArchived(e.target.checked);
+            setSelected("");
+            choose("");
+          }}
+        />
+        Show archived workflows
+      </label>
+      {editing && w && (
+        <WorkflowForm
+          key={w.id}
+          data={data}
+          initial={{ projectId: w.projectId, goal: w.goal, tasks: w.tasks }}
+          pending={pending}
+          cancel={() => setEditing(false)}
+          save={async (request) => {
+            const saved = await run(() =>
+              api.EditWorkflow({
+                workflowId: w.id,
+                revision: w.revision,
+                goal: request.goal,
+                tasks: request.tasks,
+              }),
+            );
+            if (saved) {
+              choose(saved.tasks[0].id);
+              setEditing(false);
+            }
+          }}
+        />
+      )}
       {creating && (
         <WorkflowForm
           data={data}
@@ -104,6 +148,7 @@ export function LiveWorkflows({
           save={async (request) => {
             const created = await run(() => api.CreateWorkflow(request));
             if (created) {
+              setShowArchived(false);
               setSelected(created.id);
               choose(created.tasks[0].id);
               setCreating(false);
@@ -155,6 +200,58 @@ export function LiveWorkflows({
                 {w.tasks.filter((t) => t.artifactId).length} accepted /{" "}
                 {w.tasks.length} tasks
               </span>
+            </div>
+            <div className="workflow-actions">
+              {!w.archived &&
+                !w.canceled &&
+                !w.tasks.some((t) => t.sessionId || t.attempts.length) && (
+                  <button
+                    className="secondary"
+                    disabled={pending}
+                    onClick={() => setEditing(true)}
+                  >
+                    Edit workflow
+                  </button>
+                )}
+              {!w.archived && w.state !== "completed" && (
+                <button
+                  className="secondary"
+                  disabled={pending}
+                  onClick={async () => {
+                    await run(() =>
+                      api.CancelWorkflow({
+                        workflowId: w.id,
+                        taskId: "",
+                        revision: w.revision,
+                      }),
+                    );
+                    setConfirm(false);
+                  }}
+                >
+                  Cancel workflow
+                </button>
+              )}
+              {!w.archived && (w.canceled || w.state === "completed") && (
+                <button
+                  className="secondary"
+                  disabled={pending}
+                  onClick={async () => {
+                    const archived = await run(() =>
+                      api.ArchiveWorkflow({
+                        workflowId: w.id,
+                        taskId: "",
+                        revision: w.revision,
+                      }),
+                    );
+                    if (archived) {
+                      setSelected("");
+                      choose("");
+                    }
+                  }}
+                >
+                  Archive workflow
+                </button>
+              )}
             </div>
             <div
               className="segmented"
@@ -239,7 +336,7 @@ export function LiveWorkflows({
                   ? "Accepted dependency evidence is supplied as reference data to this task. Files are not merged between worktrees."
                   : "Project context defaults are copied into the new session."}
               </p>
-              {!task.sessionId && (
+              {!task.sessionId && !w.canceled && !w.archived && (
                 <>
                   {project?.git && (
                     <label className="checkbox-line">
@@ -268,7 +365,11 @@ export function LiveWorkflows({
                       if (started) setEvidence(undefined);
                     }}
                   >
-                    {pending ? "Starting…" : "Start task"}
+                    {pending
+                      ? "Starting…"
+                      : task.attempts.length
+                        ? "Retry task"
+                        : "Start task"}
                     <ArrowRight size={16} />
                   </button>
                   {task.state === "blocked" && (
@@ -278,6 +379,18 @@ export function LiveWorkflows({
               )}
               {task.sessionId && (
                 <div className="workflow-actions">
+                  {!w.canceled &&
+                    !w.archived &&
+                    session &&
+                    active(session.state) && (
+                      <button
+                        className="secondary"
+                        disabled={pending}
+                        onClick={() => run(() => api.Stop(task.sessionId))}
+                      >
+                        Stop attempt
+                      </button>
+                    )}
                   <button
                     className="secondary"
                     onClick={() => openSession(task.sessionId)}
@@ -303,6 +416,70 @@ export function LiveWorkflows({
                   </button>
                 </div>
               )}
+              {!!task.attempts.length && (
+                <details>
+                  <summary>Attempts ({task.attempts.length})</summary>
+                  <ol className="work-timeline">
+                    {task.attempts.map((a, i) => (
+                      <li key={a.sessionId}>
+                        <strong>
+                          Attempt {i + 1} · {a.outcome}
+                        </strong>
+                        <span>{a.reason}</span>
+                        <button
+                          className="text-button"
+                          onClick={() => openSession(a.sessionId)}
+                        >
+                          Open attempt {i + 1}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+              {!w.canceled &&
+                !w.archived &&
+                !task.artifactId &&
+                session &&
+                !active(session.state) && (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const rejected = await run(() =>
+                        api.RejectWorkflowTask({
+                          ...action(),
+                          reason,
+                          sourceRevision: validEvidence?.revision,
+                        }),
+                      );
+                      if (rejected) {
+                        setEvidence(undefined);
+                        setConfirm(false);
+                        setReason("");
+                      }
+                    }}
+                  >
+                    <label>
+                      Feedback for the next attempt
+                      <textarea
+                        required
+                        maxLength={4096}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="secondary"
+                      disabled={pending || !reason.trim()}
+                    >
+                      Reject and prepare retry
+                    </button>
+                    <p className="help">
+                      Keeps this attempt and its evidence. Retry starts a new
+                      session only when you choose.
+                    </p>
+                  </form>
+                )}
               {task.artifactId && (
                 <p>
                   <Check size={14} /> Human-accepted handoff saved. This does
@@ -321,8 +498,44 @@ export function LiveWorkflows({
                   Source revision {validEvidence.revision}
                 </span>
               </div>
+              <p className="help">
+                Downstream handoff:{" "}
+                {validEvidence.handoffBytes.toLocaleString()} bytes ·{" "}
+                {validEvidence.omittedRecords} older records omitted. Each
+                dependency may be shortened further to fit the shared prompt
+                budget.
+              </p>
+              <details>
+                <summary>Downstream reference text</summary>
+                <pre className="evidence-text">
+                  {validEvidence.handoff ||
+                    "No conversation or outcome records"}
+                </pre>
+              </details>
+              {validEvidence.changes && (
+                <details open>
+                  <summary>
+                    Code snapshot · HEAD {validEvidence.headCommit.slice(0, 12)}
+                  </summary>
+                  <p className="help">
+                    Tracked changes relative to the session's starting commit.
+                    Untracked files are listed but their contents are not
+                    captured.{" "}
+                    {validEvidence.changes.truncated
+                      ? "Diff preview is truncated."
+                      : ""}
+                  </p>
+                  <pre className="file-status">
+                    {validEvidence.diffStat || "No tracked changes"}
+                  </pre>
+                  <pre className="file-status">
+                    {validEvidence.changes.status}
+                  </pre>
+                  <pre className="diff">{validEvidence.changes.diff}</pre>
+                </details>
+              )}
               <WorkflowEvidenceView evidence={validEvidence} />
-              {!task.artifactId && (
+              {!task.artifactId && !w.canceled && !w.archived && (
                 <>
                   <p className="help">
                     Inspect the output and the session’s Changes view before
@@ -373,6 +586,7 @@ export function LiveWorkflows({
                             api.AcceptWorkflowTask({
                               ...action(),
                               sourceRevision: validEvidence.revision,
+                              sourceCodeRevision: validEvidence.codeRevision,
                             }),
                           );
                           setConfirm(false);
@@ -431,145 +645,5 @@ function WorkflowEvidenceView({ evidence }: { evidence: WorkflowArtifact }) {
         .map((e) => (e.kind === "user" ? `\nYou: ${e.text}\n` : e.text))
         .join("")}
     />
-  );
-}
-function WorkflowForm({
-  data,
-  pending,
-  cancel,
-  save,
-}: {
-  data: Snapshot;
-  pending: boolean;
-  cancel: () => void;
-  save: (r: CreateWorkflowRequest) => Promise<void>;
-}) {
-  const [projectId, setProject] = useState(data.projects[0]?.id || ""),
-    [goal, setGoal] = useState("");
-  type DraftTask = CreateWorkflowRequest["tasks"][number];
-  const makeTask = (): DraftTask => ({
-    id: crypto.randomUUID(),
-    title: "",
-    prompt: "",
-    provider:
-      data.providers.find((p) => p.available)?.id ||
-      data.providers[0]?.id ||
-      "",
-    dependsOn: [],
-  });
-  const [tasks, setTasks] = useState<DraftTask[]>(() => [makeTask()]);
-  const edit = (id: string, patch: Partial<DraftTask>) =>
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  return (
-    <form
-      className="work-surface workflow-form"
-      onSubmit={async (e: FormEvent) => {
-        e.preventDefault();
-        await save({ projectId, goal, tasks });
-      }}
-    >
-      <h2>Give the team a shared goal.</h2>
-      <label>
-        Project
-        <select value={projectId} onChange={(e) => setProject(e.target.value)}>
-          {data.projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Workflow goal
-        <input
-          required
-          maxLength={500}
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          placeholder="What should this team accomplish?"
-        />
-      </label>
-      {tasks.map((task, i) => (
-        <fieldset key={task.id}>
-          <legend>Task {i + 1}</legend>
-          <label>
-            Task name
-            <input
-              aria-label={`Task ${i + 1} name`}
-              required
-              maxLength={120}
-              value={task.title}
-              onChange={(e) => edit(task.id, { title: e.target.value })}
-            />
-          </label>
-          <label>
-            Brief and acceptance criteria
-            <textarea
-              aria-label={`Task ${i + 1} brief`}
-              required
-              maxLength={64000}
-              rows={3}
-              value={task.prompt}
-              onChange={(e) => edit(task.id, { prompt: e.target.value })}
-            />
-          </label>
-          <label>
-            Provider
-            <select
-              value={task.provider}
-              onChange={(e) => edit(task.id, { provider: e.target.value })}
-            >
-              {data.providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.available ? "" : " · setup needed"}
-                </option>
-              ))}
-            </select>
-          </label>
-          {i > 0 && (
-            <div>
-              <p className="help">Wait for human acceptance of:</p>
-              {tasks.slice(0, i).map((dep) => (
-                <label className="checkbox-line" key={dep.id}>
-                  <input
-                    type="checkbox"
-                    checked={task.dependsOn.includes(dep.id)}
-                    onChange={(e) =>
-                      edit(task.id, {
-                        dependsOn: e.target.checked
-                          ? [...task.dependsOn, dep.id]
-                          : task.dependsOn.filter((id) => id !== dep.id),
-                      })
-                    }
-                  />
-                  {dep.title || "Untitled task"}
-                </label>
-              ))}
-            </div>
-          )}
-        </fieldset>
-      ))}
-      <div className="workflow-actions">
-        <button
-          type="button"
-          className="secondary"
-          disabled={tasks.length >= 30}
-          onClick={() => setTasks([...tasks, makeTask()])}
-        >
-          <Plus size={15} />
-          Add task
-        </button>
-        <button type="button" className="text-button" onClick={cancel}>
-          Cancel
-        </button>
-        <button
-          className="primary"
-          disabled={pending || !projectId || !data.providers.length}
-        >
-          {pending ? "Saving…" : "Save workflow"}
-        </button>
-      </div>
-    </form>
   );
 }

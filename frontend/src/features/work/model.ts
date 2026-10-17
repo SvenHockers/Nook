@@ -1,39 +1,21 @@
 import type { RuntimeState } from "../avatars/model";
-export type WorkflowState =
-  | "draft"
-  | "queued"
-  | "running"
-  | "waiting_for_input"
-  | "blocked"
-  | "completed"
-  | "failed"
-  | "canceled";
-export type TaskState =
-  | "pending"
-  | "ready"
-  | "running"
-  | "waiting_for_input"
-  | "blocked"
-  | "succeeded"
-  | "failed"
-  | "skipped"
-  | "canceled";
-export interface WorkTask {
-  id: string;
-  title: string;
+import type { WorkflowRecord, WorkflowTaskRecord } from "../../types";
+export type { WorkflowState, TaskState } from "../../types";
+export interface WorkTask extends Pick<
+  WorkflowTaskRecord,
+  "id" | "title" | "state" | "dependsOn"
+> {
   owner: number;
-  state: TaskState;
   agentState: RuntimeState;
-  dependsOn: string[];
   acceptance: string;
   context: string[];
   artifactIds: string[];
 }
-export interface Workflow {
-  id: string;
-  goal: string;
+export interface Workflow extends Pick<
+  WorkflowRecord,
+  "id" | "goal" | "state"
+> {
   checkpoint: string;
-  state: WorkflowState;
   tasks: WorkTask[];
   history: { time: string; text: string }[];
   handoffs: {

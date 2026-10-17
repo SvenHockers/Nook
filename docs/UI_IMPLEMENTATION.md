@@ -66,6 +66,17 @@ Files changed for this slice: `frontend/src/App.tsx`, `Avatar.tsx`, `style.css`;
 
 The live workspace supports saved definitions, provider assignments, dependency inspection, individual task launch, history, and explicit output review/acceptance. Starts and acceptance use revision checks and atomic storage; accepted event evidence is immutable. Provider completion alone does not unlock dependencies. Stop/resume stays in the assigned agent session. Browser demo execution is simulated and lasts only for the current visit.
 
-Handoffs transfer recorded events, not file changes or independently verified results. The serialized event payload, including structured approvals, is capped at 1 MB and 10,000 events; the downstream prompt has a separate 256 KB limit. Oversized handoffs fail visibly. Loop execution, automatic scheduling, workflow retries and real-provider workflow acceptance remain pending.
+Handoffs transfer recorded events, not file changes or independently verified results. The serialized event payload, including structured approvals, is capped at 1 MB and 10,000 events; the downstream prompt has a separate 256 KB limit. Oversized handoffs fail visibly. At the time of this 16 October record, loop execution, automatic scheduling, workflow retries and real-provider workflow acceptance remained pending. The 17 October slice below supersedes the workflow retry/handoff status.
 
 Fresh checks: frontend production build; 23 frontend unit tests; 36 browser tests across Chromium/WebKit including workflow acceptance and Presentation Agent controls; 50 Rust backend tests plus the new structured-payload limit regression; Tauri shell compilation through cargo test; clean backend and shell Clippy checks; bundled sidecar stdio/persistence/shutdown smoke. The [saved-workflow screenshot](validation/ui/nook-saved-workflow.png) was visually inspected. The corrected reference-example label was rechecked in both browsers. These checks do not establish installed-app acceptance on Windows or a signed-in native workflow run.
+
+## Workflow recovery slice — 17 October 2026
+
+Saved workflows support draft edits, rejected attempts followed by explicit retry, cancellation, and archival. The inspector retains links to every attempt and shows the downstream handoff size, omitted record count, HEAD, status, diff stat and bounded diff. Acceptance submits both the inspected event revision and code fingerprint; changes require another inspection. Needs attention links directly to workflow tasks awaiting acceptance or recovery. Workflow notifications follow the completion opt-in. `WorkflowForm.tsx` owns draft editing separately from the live workspace.
+
+The browser simulator implements the lifecycle commands and is covered by recovery/attention tests. Real-provider validation and remaining manual/native gates are recorded in `VALIDATION.md`.
+
+
+### Phase 2 — native evidence and checks
+
+The session Canvas now includes Record evidence and Verification checks. Project configuration accepts a JSON array of named argv commands, timeout seconds and output cap bytes. Users see the exact saved commands and working directory; first-use confirmation is scoped to the saved configuration and resets on edits. Checks show running/cancel and recent outcomes, with full records in Canvas Raw and exit-code TestReport evidence after Refresh. The demo explains that native capture/execution is unavailable instead of inventing measured results. Browser tests cover command review, cancellation of confirmation and the demo boundary.

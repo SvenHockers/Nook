@@ -200,8 +200,28 @@ export function createDemo(onChange: () => void): API {
       );
       push(id, "completed", "Demo turn complete");
     },
+    (id) => api.Stop(id),
   );
+  const checkConfigs = new Map<string, import("./types").CheckConfiguration>();
   const api: API = {
+    CheckConfiguration: async (id) =>
+      checkConfigs.get(id) ?? { revision: "", commands: [], approved: false },
+    ConfigureChecks: async (id, commands) => {
+      const c = { revision: String(Date.now()), commands, approved: false };
+      checkConfigs.set(id, c);
+      return c;
+    },
+    CaptureEvidence: async () => {
+      throw Error(
+        "Open the desktop app to record git and session evidence. The demo does not measure a real workspace.",
+      );
+    },
+    RunCheck: async () => {
+      throw Error(
+        "Open the desktop app to run checks. The demo never executes commands.",
+      );
+    },
+    CancelCheck: async () => {},
     ...workflow.api,
     ...createPresentationDemo(sessions, events),
     Snapshot: async () =>
@@ -227,11 +247,13 @@ export function createDemo(onChange: () => void): API {
       return structuredClone(s);
     },
     Send: async (id, text) => {
+      workflow.assertCanSend(id);
       const s = get(id);
       s.state = "working";
       s.activity = "Working on your task";
       push(id, "user", text);
       setTimeout(() => {
+        if (s.state !== "working") return;
         s.state = "completed";
         s.activity = "Ready for your review";
         push(

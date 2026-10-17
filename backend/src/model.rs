@@ -197,6 +197,10 @@ pub struct ApprovalResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SessionEvent {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub recorded: Vec<crate::presentation::Recorded>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub check: Option<CheckRun>,
     pub sequence: i64,
     pub session_id: String,
     pub kind: String,
@@ -236,6 +240,15 @@ pub struct Changes {
 /// Workflow task acceptance is a human decision, separate from provider turn completion.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
+pub struct TaskAttempt {
+    pub session_id: String,
+    pub outcome: String,
+    pub reason: String,
+    pub started_at: String,
+    pub finished_at: String,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct WorkflowTask {
     pub id: String,
     pub title: String,
@@ -244,6 +257,7 @@ pub struct WorkflowTask {
     pub depends_on: Vec<String>,
     pub session_id: String,
     pub artifact_id: String,
+    pub attempts: Vec<TaskAttempt>,
     pub state: String,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -258,6 +272,8 @@ pub struct WorkflowEvent {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Workflow {
+    pub canceled: bool,
+    pub archived: bool,
     pub id: String,
     pub project_id: String,
     pub goal: String,
@@ -282,7 +298,17 @@ pub struct WorkflowAction {
     pub task_id: String,
     pub revision: i64,
     pub source_revision: i64,
+    pub source_code_revision: String,
+    pub reason: String,
     pub shared: bool,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct EditWorkflowRequest {
+    pub workflow_id: String,
+    pub revision: i64,
+    pub goal: String,
+    pub tasks: Vec<WorkflowTask>,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -294,6 +320,13 @@ pub struct WorkflowArtifact {
     pub session_id: String,
     pub revision: i64,
     pub accepted_at: String,
+    pub handoff: String,
+    pub handoff_bytes: usize,
+    pub omitted_records: usize,
+    pub head_commit: String,
+    pub changes: Option<Changes>,
+    pub diff_stat: String,
+    pub code_revision: String,
     pub events: Vec<SessionEvent>,
 }
 
@@ -321,4 +354,28 @@ mod tests {
         );
         assert_eq!(uuid().len(), 36);
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct VerificationCommand {
+    pub name: String,
+    pub argv: Vec<String>,
+    pub timeout_seconds: u64,
+    pub output_cap: usize,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CheckRun {
+    pub id: String,
+    pub command: VerificationCommand,
+    pub started_at: String,
+    pub finished_at: String,
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+    pub outcome: String,
+    pub output: String,
+    pub truncated: bool,
+    pub process_id: i64,
+    pub process_birth: String,
 }

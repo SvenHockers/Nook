@@ -99,10 +99,19 @@ fn ok<T: Serialize>(r: Res<T>) -> Res<Value> {
 
 pub fn dispatch(s: &Arc<Service>, r: &Request) -> Res<Value> {
     match r.method.as_str() {
+        "CaptureEvidence" => return ok(s.capture_evidence(&arg::<String>(r, 0)?)),
+        "CheckConfiguration" => return ok(s.check_configuration(&arg::<String>(r, 0)?)),
+        "ConfigureChecks" => return ok(s.configure_checks(&arg::<String>(r, 0)?, arg(r, 1)?)),
+        "RunCheck" => return ok(s.run_check(arg(r, 0)?)),
+        "CancelCheck" => return ok(s.cancel_check(&arg::<String>(r, 0)?)),
         "Snapshot" => return ok(Ok(s.snapshot())),
         "RefreshProviders" => return ok(Ok(s.refresh_providers())),
         "Navigation" => return ok(Ok(s.navigation())),
         "AddProject" => return ok(s.add_project(&arg::<String>(r, 0)?)),
+        "RejectWorkflowTask" => return ok(s.reject_workflow_task(arg(r, 0)?)),
+        "EditWorkflow" => return ok(s.edit_workflow(arg(r, 0)?)),
+        "CancelWorkflow" => return ok(s.cancel_workflow(arg(r, 0)?)),
+        "ArchiveWorkflow" => return ok(s.archive_workflow(arg(r, 0)?)),
         "CreateWorkflow" => return ok(s.create_workflow(arg(r, 0)?)),
         "StartWorkflowTask" => return ok(s.start_workflow_task(arg(r, 0)?)),
         "AcceptWorkflowTask" => return ok(s.accept_workflow_task(arg(r, 0)?)),

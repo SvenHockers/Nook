@@ -41,6 +41,30 @@ pub fn start(
     Ok((Arc::new(child), stdout))
 }
 
+/// Explicit user-run verification captures both streams; provider stderr remains discarded.
+pub fn start_check(
+    argv: &[String],
+    cwd: &str,
+) -> Res<(Arc<Child>, ChildStdout, std::process::ChildStderr)> {
+    let mut cmd = Command::new(&argv[0]);
+    cmd.args(&argv[1..])
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let (mut proc, group) = Group::spawn(&mut cmd).map_err(err)?;
+    let stdout = proc.stdout.take().ok_or("stdout is unavailable")?;
+    let stderr = proc.stderr.take().ok_or("stderr is unavailable")?;
+    let child = Arc::new(Child {
+        pid: proc.id(),
+        stdin: Mutex::new(None),
+        proc: Mutex::new(proc),
+        done: Gate::new(1),
+        group,
+    });
+    Ok((child, stdout, stderr))
+}
+
 impl Child {
     /// Call once, after stdout has been drained.
     pub fn wait(&self) -> io::Result<ExitStatus> {

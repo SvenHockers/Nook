@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-17",
+  "platform": "macOS 15.7.3 (24G419), ARM64",
+  "rust": "1.99.1",
+  "provider": "codex",
+  "providerVersion": "0.162.1",
+  "route": "Rust IPC workflow runtime, installed signed-in Codex app-server",
+  "result": "passed",
+  "tasks": 2,
+  "isolatedGitWorktrees": true,
+  "exactOutputChecked": true,
+  "acceptedHandoffConsumed": true,
+  "codeSnapshotsInspected": true,
+  "filesChanged": false,
+  "toolsApproved": false,
+  "acceptance": "programmatic test validation",
+  "manualNativeAcceptance": "pending",
+  "command": "cargo test --manifest-path backend/Cargo.toml --locked --test workflow live_codex_two_task_workflow -- --ignored --nocapture"
+}

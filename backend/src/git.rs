@@ -54,6 +54,30 @@ pub fn changes(dir: &str, base: &str) -> Res<Changes> {
         truncated,
     })
 }
+/// Recorded code identity and summary; never evaluates project diff drivers.
+pub fn head(dir: &str) -> Res<String> {
+    text(dir, &["rev-parse", "--verify", "HEAD"]).map(|s| s.trim().into())
+}
+pub fn diff_stat(dir: &str, base: &str) -> Res<String> {
+    let base = if base.is_empty() { "HEAD" } else { base };
+    let mut stat = text(
+        dir,
+        &[
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--stat",
+            base,
+            "--",
+        ],
+    )?;
+    if stat.len() > 16 * 1024 {
+        truncate(&mut stat, 16 * 1024);
+        stat += "\n[Diff stat truncated]";
+    }
+    Ok(stat)
+}
+
 /// Raw bytes: an exported patch must keep non-UTF-8 content intact.
 pub fn patch(dir: &str, base: &str) -> Res<Vec<u8>> {
     let base = if base.is_empty() { "HEAD" } else { base };
@@ -68,6 +92,27 @@ pub fn patch(dir: &str, base: &str) -> Res<Vec<u8>> {
             "--",
         ],
     )
+}
+
+/// NUL-delimited paths, with renames disabled so each row has one unambiguous path.
+pub fn evidence_inputs(dir: &str, base: &str) -> Res<(String, String)> {
+    let base = if base.is_empty() { "HEAD" } else { base };
+    Ok((
+        text(
+            dir,
+            &[
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-renames",
+                "--numstat",
+                "-z",
+                base,
+                "--",
+            ],
+        )?,
+        text(dir, &["status", "--porcelain=v1", "-z", "--no-renames"])?,
+    ))
 }
 
 #[cfg(test)]

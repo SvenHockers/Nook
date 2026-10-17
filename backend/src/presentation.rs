@@ -9,10 +9,10 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 
 pub const SCHEMA: &str = "nook.presentation.v1";
-pub const CATALOG: &str = "1";
+pub const CATALOG: &str = "2";
 pub const STANDARD: &str = "deterministic-1";
 pub const ARRANGED: &str = "agent-1";
-const PROMPT_VERSION: &str = "1";
+const PROMPT_VERSION: &str = "2";
 /// The view shows the latest records, never an unbounded transcript.
 pub const MAX_EVIDENCE: usize = 200;
 pub const MAX_BLOCKS: usize = 100;
@@ -25,6 +25,7 @@ const PROMPT_TEXT: usize = 1200;
 const INSTRUCTIONS: &str = "You plan how a coding session's recorded output is laid out in Nook, a desktop app.
 Choose which evidence items to show, in what order, and which component renders each one.
 Components for text evidence: Summary (short prose), Finding (an issue, risk or decision), TerminalExcerpt (command output or logs), CodeDiff (a diff or code change).
+Components for metric: Metric. For table: DataTable, FileChangeList, TaskTimeline. For series: Chart, Comparison. For tests: TestReport. For edges: DependencyGraph, HandoffTrace.
 Rules:
 - Use only evidence ids listed under EVIDENCE, each at most once. Leave out noise.
 - Reply with exactly one JSON object and nothing else: {\"blocks\":[{\"evidenceId\":\"<id>\",\"type\":\"<component>\"}]}
@@ -93,6 +94,12 @@ impl EvidenceData {
             EvidenceData::Edges { .. } => "edges",
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Recorded {
+    pub label: String,
+    pub data: EvidenceData,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -172,6 +179,16 @@ pub fn catalog(component: &str) -> Option<&'static str> {
     })
 }
 fn default_component(e: &Evidence) -> &'static str {
+    if e.attribution == "recorded" {
+        match e.label.as_str() {
+            "Changed files" => return "FileChangeList",
+            "Code changes" => return "CodeDiff",
+            "Session timeline" => return "TaskTimeline",
+            "Accepted handoffs" => return "HandoffTrace",
+            "Check output" => return "TerminalExcerpt",
+            _ => {}
+        }
+    }
     match e.data {
         EvidenceData::Text { .. } => "Summary",
         EvidenceData::Metric { .. } => "Metric",
@@ -189,6 +206,21 @@ pub fn build_evidence(events: &[SessionEvent], source: &Source) -> (Vec<Evidence
     let mut out: Vec<Evidence> = Vec::new();
     let mut groups: HashMap<&str, usize> = HashMap::new();
     for e in events.iter().filter(|e| e.session_id == source.id) {
+        if matches!(e.kind.as_str(), "evidence" | "check") {
+            for (i, record) in e.recorded.iter().enumerate() {
+                out.push(Evidence {
+                    id: format!("{}:{}:{}", source.id, e.sequence, i),
+                    project_id: source.project_id.clone(),
+                    source_id: source.id.clone(),
+                    revision: source.revision.clone(),
+                    timestamp: e.time.clone(),
+                    attribution: "recorded".into(),
+                    label: record.label.clone(),
+                    data: record.data.clone(),
+                });
+            }
+            continue;
+        }
         let (label, attribution, text) = match e.kind.as_str() {
             "user" => ("You", "recorded", e.text.clone()),
             "delta" => ("Agent", "agent-reported", e.text.clone()),
@@ -332,13 +364,14 @@ pub fn prompt(evidence: &[Evidence], focus: &str) -> String {
     let start = evidence.len().saturating_sub(PROMPT_ITEMS);
     let items: Vec<Value> = evidence[start..]
         .iter()
-        .filter_map(|e| match &e.data {
-            EvidenceData::Text { text } => {
-                let mut text = text.clone();
-                truncate(&mut text, PROMPT_TEXT);
-                Some(json!({"id": e.id, "label": e.label, "kind": "text", "text": text}))
-            }
-            _ => None,
+        .map(|e| {
+            // A bounded preview is enough for choosing a component; rendering uses the original.
+            let mut preview = match &e.data {
+                EvidenceData::Text { text } => text.clone(),
+                _ => serde_json::to_string(&e.data).unwrap_or_default(),
+            };
+            truncate(&mut preview, PROMPT_TEXT);
+            json!({"id": e.id, "label": e.label, "kind": e.data.kind(), "preview": preview})
         })
         .collect();
     format!(

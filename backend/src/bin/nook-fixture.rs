@@ -20,6 +20,15 @@ fn send(v: Value) {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
+        Some("verify") => {
+            println!("all tests passed (untrusted prose)");
+            eprintln!("verification stderr");
+            println!("cwd={}", std::env::current_dir().unwrap().display());
+            if args.iter().any(|s| s == "flood") {
+                print!("{}", "x".repeat(100_000));
+            }
+            exit(args.get(2).and_then(|s| s.parse().ok()).unwrap_or(0));
+        }
         Some("app-server") => codex(),
         Some("--print") if args.iter().any(|a| a == "--tools") => presenter(&args),
         Some("--print") => claude(&args),

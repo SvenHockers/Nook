@@ -18,8 +18,17 @@ async function call<T>(method: string, ...args: unknown[]): Promise<T> {
   return invoke<T>("backend_call", { method, args });
 }
 const native: API = {
+  CaptureEvidence: (id) => call("CaptureEvidence", id),
+  CheckConfiguration: (id) => call("CheckConfiguration", id),
+  ConfigureChecks: (id, commands) => call("ConfigureChecks", id, commands),
+  RunCheck: (r) => call("RunCheck", r),
+  CancelCheck: (id) => call("CancelCheck", id),
   PresentSession: (r) => call("PresentSession", r),
   CancelPresentation: (id) => call("CancelPresentation", id),
+  RejectWorkflowTask: (r) => call("RejectWorkflowTask", r),
+  EditWorkflow: (r) => call("EditWorkflow", r),
+  CancelWorkflow: (r) => call("CancelWorkflow", r),
+  ArchiveWorkflow: (r) => call("ArchiveWorkflow", r),
   CreateWorkflow: (r) => call("CreateWorkflow", r),
   StartWorkflowTask: (r) => call("StartWorkflowTask", r),
   AcceptWorkflowTask: (r) => call("AcceptWorkflowTask", r),

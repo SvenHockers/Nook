@@ -78,7 +78,34 @@ export interface Answer {
   decision: string;
   answers: Record<string, string[]>;
 }
+export interface VerificationCommand {
+  name: string;
+  argv: string[];
+  timeoutSeconds: number;
+  outputCap: number;
+}
+export interface CheckConfiguration {
+  revision: string;
+  commands: VerificationCommand[];
+  approved: boolean;
+}
+export interface CheckRun {
+  id: string;
+  command: VerificationCommand;
+  startedAt: string;
+  finishedAt: string;
+  exitCode: number | null;
+  durationMs: number;
+  outcome: string;
+  output: string;
+  truncated: boolean;
+}
 export interface SessionEvent {
+  recorded?: {
+    label: string;
+    data: import("./features/canvas/model").EvidenceData;
+  }[];
+  check?: CheckRun;
   sequence: number;
   sessionId: string;
   kind: string;
@@ -86,6 +113,32 @@ export interface SessionEvent {
   itemId: string;
   time: string;
   approval?: Approval;
+}
+export type WorkflowState =
+  | "draft"
+  | "queued"
+  | "running"
+  | "waiting_for_input"
+  | "blocked"
+  | "completed"
+  | "failed"
+  | "canceled";
+export type TaskState =
+  | "pending"
+  | "ready"
+  | "running"
+  | "waiting_for_input"
+  | "blocked"
+  | "succeeded"
+  | "failed"
+  | "skipped"
+  | "canceled";
+export interface TaskAttempt {
+  sessionId: string;
+  outcome: string;
+  reason: string;
+  startedAt: string;
+  finishedAt: string;
 }
 export interface WorkflowTaskRecord {
   id: string;
@@ -95,20 +148,17 @@ export interface WorkflowTaskRecord {
   dependsOn: string[];
   sessionId: string;
   artifactId: string;
-  state:
-    | "ready"
-    | "blocked"
-    | "running"
-    | "waiting_for_input"
-    | "failed"
-    | "succeeded";
+  attempts: TaskAttempt[];
+  state: TaskState;
 }
 export interface WorkflowRecord {
   id: string;
   projectId: string;
   goal: string;
   revision: number;
-  state: "draft" | "blocked" | "running" | "waiting_for_input" | "completed";
+  state: WorkflowState;
+  canceled: boolean;
+  archived: boolean;
   tasks: WorkflowTaskRecord[];
   history: {
     id: string;
@@ -133,7 +183,16 @@ export interface WorkflowAction {
   taskId: string;
   revision: number;
   sourceRevision?: number;
+  sourceCodeRevision?: string;
+  reason?: string;
   shared?: boolean;
+}
+export interface EditWorkflowRequest extends Omit<
+  CreateWorkflowRequest,
+  "projectId"
+> {
+  workflowId: string;
+  revision: number;
 }
 export interface WorkflowArtifact {
   id: string;
@@ -143,6 +202,13 @@ export interface WorkflowArtifact {
   sessionId: string;
   revision: number;
   acceptedAt: string;
+  handoff: string;
+  handoffBytes: number;
+  omittedRecords: number;
+  headCommit: string;
+  changes: Changes | null;
+  diffStat: string;
+  codeRevision: string;
   events: SessionEvent[];
 }
 export interface Snapshot {
@@ -166,8 +232,25 @@ export interface Changes {
   truncated: boolean;
 }
 export interface API {
+  CaptureEvidence(id: string): Promise<void>;
+  CheckConfiguration(project: string): Promise<CheckConfiguration>;
+  ConfigureChecks(
+    project: string,
+    commands: VerificationCommand[],
+  ): Promise<CheckConfiguration>;
+  RunCheck(request: {
+    sessionId: string;
+    name: string;
+    revision: string;
+    confirm: boolean;
+  }): Promise<void>;
+  CancelCheck(id: string): Promise<void>;
   PresentSession(request: PresentRequest): Promise<PresentResult>;
   CancelPresentation(id: string): Promise<void>;
+  RejectWorkflowTask(request: WorkflowAction): Promise<WorkflowRecord>;
+  EditWorkflow(request: EditWorkflowRequest): Promise<WorkflowRecord>;
+  CancelWorkflow(request: WorkflowAction): Promise<WorkflowRecord>;
+  ArchiveWorkflow(request: WorkflowAction): Promise<WorkflowRecord>;
   CreateWorkflow(request: CreateWorkflowRequest): Promise<WorkflowRecord>;
   StartWorkflowTask(request: WorkflowAction): Promise<Session>;
   AcceptWorkflowTask(request: WorkflowAction): Promise<WorkflowRecord>;

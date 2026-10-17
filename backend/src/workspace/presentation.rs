@@ -46,7 +46,7 @@ impl Presenting {
 
 impl Service {
     /// Evidence for exactly `revision`: the caller must name an event it has seen.
-    fn events_through(&self, id: &str, revision: i64) -> Res<Vec<SessionEvent>> {
+    pub(super) fn events_through(&self, id: &str, revision: i64) -> Res<Vec<SessionEvent>> {
         if revision < 0 {
             return Err("Invalid revision".into());
         }
@@ -59,7 +59,7 @@ impl Service {
                     return Ok(out);
                 }
                 after = e.sequence;
-                bytes += e.text.len();
+                bytes += serde_json::to_vec(&e).map_err(err)?.len();
                 if bytes > MAX_BYTES || out.len() >= MAX_EVENTS {
                     return Err("This session is too large to arrange; use Chat or Raw".into());
                 }

@@ -1,5 +1,41 @@
 # Validation and release gates
 
+## Phase 2 checks — 17 October 2026
+
+macOS 15.7.3 (24G419), Apple Silicon; local Rust 1.99.1. No new Windows or installed-app acceptance is claimed.
+
+- Backend: 67 passing tests, with the existing opt-in live Codex test excluded. Native verification tests execute a fixture binary through IPC in a persisted session folder. They cover first-use consent, changed-configuration refusal, exit-code results despite contradictory prose, stdout/stderr capture and byte caps, missing executables, timeout/cancel/quit with descendant death, and interrupted-run reconciliation.
+- A disposable real git repository records changed and untracked paths, numstat counts and CodeDiff. Editing files afterward leaves the old presentation revision unchanged. A provider-ingestion test rejects forged native event kinds and strips structured fields from provider output.
+- Rust-generated `frontend/src/features/canvas/evidence.golden.json` and Vitest agree on all six evidence kinds, labels, attribution, layout, standard cache key and Unicode truncation. Frontend: 26 passing unit tests, successful type check and production bundle.
+- All 42 Chromium/WebKit browser tests pass, including exact-command review, backing out of confirmation, and the demo's refusal to execute commands or invent native evidence. Backend format/Clippy, Tauri compilation and all 32 allowlisted desktop commands pass.
+- Checks are explicit, unsandboxed project commands; no model text triggers them. This phase exercised fixtures and real git, not a new live-provider turn. Installed-app usability and Windows verification remain pending.
+
+Regenerate the shared fixture only when intentionally changing the contract:
+
+```sh
+NOOK_UPDATE_GOLDEN=1 cargo test --manifest-path backend/Cargo.toml adapters_and_golden_parity
+npm test
+```
+
+## Phase 1 checks — 17 October 2026
+
+macOS 15.7.3 (24G419), Apple Silicon; local Rust 1.99.1. CI remains pinned to Rust 1.93.0; these local results do not certify that toolchain or Windows.
+
+- Backend: 60 tests passed, including a fixture-driven A → B → C workflow through IPC, one rejected/retried B attempt, bounded transitive handoffs, restart during C, immutable artifacts, code-preview drift, missing worktree refusal, and cancellation of a running provider awaiting approval.
+- Frontend: production build/type checking and 25 unit tests passed. All 40 Chromium/WebKit cases passed, including workflow recovery, draft editing, cancellation, archive inspection and attention navigation.
+- Backend format/Clippy, Tauri compilation, and all 27 allowlisted desktop commands in the sidecar smoke test passed.
+- Live Codex 0.162.1: two tasks in disposable Git worktrees completed; B returned A's marker through the accepted handoff. Both exact outputs and empty diffs were checked before programmatic acceptance. No tools were approved, no project files changed, and the provider processes were stopped at teardown. Machine-readable result: [workflow-codex.json](validation/workflow-codex.json).
+
+Repeat the opt-in live check (uses the installed signed-in account):
+
+```sh
+cargo test --manifest-path backend/Cargo.toml --locked --test workflow live_codex_two_task_workflow -- --ignored --nocapture
+```
+
+The live check does not establish manual native-UI acceptance, real tool approvals/questions, Claude behavior, Windows compatibility, or installed-package readiness. Those gates remain below.
+
+## Earlier validation records — 16 October 2026
+
 This is a development preview, not a claim of completed first-release acceptance. Build configuration is not evidence of target compatibility. Recorded local checks were performed on **macOS 15.7.3 (24G419), Apple Silicon ARM64**, on 2026-10-16.
 
 | Area                              | Actual evidence                                                                                                                                                                                    | Release status                                                                 |

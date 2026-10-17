@@ -4,6 +4,7 @@ import { LaunchForm } from "./features/sessions/LaunchForm";
 import { ContextEditor } from "./features/context/ContextEditor";
 import { ChangesView } from "./features/sessions/ChangesView";
 import { Modal } from "./shared/Modal";
+import { workflowAttention } from "./features/work/attention";
 import { LiveWorkflows } from "./features/work/LiveWorkflows";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -45,6 +46,7 @@ import { api, demo, subscribe } from "./api";
 import { Avatar } from "./Avatar";
 import { mergeSessionEvents } from "./shared/events";
 import { AvatarPlayground } from "./features/avatars/AvatarPlayground";
+import { VerificationPanel } from "./features/checks/VerificationPanel";
 import { SessionCanvas } from "./features/canvas/PresentationCanvas";
 import {
   LoopWorkspace,
@@ -110,6 +112,11 @@ export function App() {
     [modal, setModal] = useState(""),
     [pending, setPending] = useState(false),
     [history, setHistory] = useState<Record<string, SessionEvent[]>>({});
+  const [workflowFocus, setWorkflowFocus] = useState<{
+    workflowId: string;
+    taskId: string;
+  }>();
+  const taskAttention = workflowAttention(data);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seqs = useRef<Record<string, number>>({});
   const fetching = useRef(false);
@@ -201,6 +208,16 @@ export function App() {
         notified.current.add(key);
         if (!document.hasFocus())
           api.Notify("Nook · Your agent needs you", a.title).catch(() => {});
+      }
+    }
+    if (nav.completionNotifications) {
+      for (const item of workflowAttention(data)) {
+        const key = `workflow:${item.key}`;
+        if (!notified.current.has(key)) {
+          notified.current.add(key);
+          if (!document.hasFocus())
+            api.Notify(`Nook · ${item.title}`, item.reason).catch(() => {});
+        }
       }
     }
     for (const s of data.sessions) {
@@ -378,12 +395,12 @@ export function App() {
             <Bell size={18} />
             Needs attention
             {data.sessions.filter((s) => !s.archived && needsAttention(s))
-              .length > 0 && (
+              .length +
+              taskAttention.length >
+              0 && (
               <span className="count attention-count">
-                {
-                  data.sessions.filter((s) => !s.archived && needsAttention(s))
-                    .length
-                }
+                {data.sessions.filter((s) => !s.archived && needsAttention(s))
+                  .length + taskAttention.length}
               </span>
             )}
           </button>
@@ -492,7 +509,17 @@ export function App() {
         </header>
         <div className="main-content">
           {nav.page === "Workflows" && (
-            <LiveWorkflows data={data} refresh={refresh} openSession={select} />
+            <LiveWorkflows
+              key={
+                workflowFocus
+                  ? `${workflowFocus.workflowId}:${workflowFocus.taskId}`
+                  : "workflows"
+              }
+              initial={workflowFocus}
+              data={data}
+              refresh={refresh}
+              openSession={select}
+            />
           )}
           {nav.page === "Loops" && <LoopWorkspace />}
           {nav.page === "Playground" && (
@@ -640,6 +667,39 @@ export function App() {
                   <kbd>{shortcutKey} K</kbd>
                 </div>
               </div>
+              {nav.filter === "attention" &&
+                taskAttention.filter(
+                  (item) =>
+                    nav.project === "all" || item.projectId === nav.project,
+                ).length > 0 && (
+                  <section
+                    className="work-surface"
+                    aria-label="Workflow attention"
+                  >
+                    <h2>Workflow tasks needing you</h2>
+                    {taskAttention
+                      .filter(
+                        (item) =>
+                          nav.project === "all" ||
+                          item.projectId === nav.project,
+                      )
+                      .map((item) => (
+                        <button
+                          className="secondary"
+                          key={item.key}
+                          onClick={() => {
+                            setWorkflowFocus(item);
+                            update({ page: "Workflows", selected: "" });
+                          }}
+                        >
+                          <strong>{item.title}</strong>
+                          <span>
+                            {item.reason} · {item.goal}
+                          </span>
+                        </button>
+                      ))}
+                  </section>
+                )}
               {project && (
                 <div className="project-context-row">
                   <FolderOpen size={15} />
@@ -890,12 +950,18 @@ export function App() {
             }}
           >
             {nav.tab === "Canvas" && (
-              <SessionCanvas
-                projectId={selected.projectId}
-                sessionId={selected.id}
-                provider={selected.provider}
-                events={history[selected.id] || []}
-              />
+              <>
+                <VerificationPanel
+                  session={selected}
+                  events={history[selected.id] || []}
+                />
+                <SessionCanvas
+                  projectId={selected.projectId}
+                  sessionId={selected.id}
+                  provider={selected.provider}
+                  events={history[selected.id] || []}
+                />
+              </>
             )}
             {nav.tab === "Conversation" && (
               <>

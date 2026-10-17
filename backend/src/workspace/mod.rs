@@ -1,7 +1,10 @@
 //! The workspace owns projects, sessions, runtimes and pending approvals.
 //! A runtime generation scopes incoming events: output from a stopped or replaced process
 //! can never update the new generation.
+mod evidence;
+mod handoff;
 mod presentation;
+mod verification;
 mod workflow;
 
 use crate::model::{self, event, id, now, *};
@@ -49,6 +52,7 @@ pub struct Service {
     helper: String,
     wg: Gate,
     notify: Option<Notify>,
+    checking: Mutex<HashMap<String, Arc<verification::Running>>>,
     presenting: Mutex<HashMap<String, Arc<presentation::Presenting>>>,
 }
 
@@ -155,6 +159,7 @@ impl Service {
             let mut st = lock(&s.st);
             (st.projects, st.sessions, st.workflows) = (projects, sessions, workflows);
         }
+        s.recover_checks()?;
         s.refresh_providers();
         Ok(s)
     }
@@ -167,6 +172,7 @@ impl Service {
             wg: Gate::default(),
             notify,
             presenting: Mutex::default(),
+            checking: Mutex::default(),
         })
     }
     fn signal(&self, name: &str, v: Value) {
@@ -295,6 +301,8 @@ impl Service {
             (v.cwd, v.branch, v.base_commit) =
                 git::create(&p.path, &self.root.join("worktrees"), &v.id)?;
             v.isolated = true;
+        } else if p.git {
+            v.base_commit = git::head(&p.path)?;
         }
         persist(st, &v)?;
         st.sessions.push(v.clone());
@@ -385,6 +393,12 @@ impl Service {
         }
     }
     fn ingest(&self, id: &str, generation: &str, mut e: SessionEvent) {
+        // Provider records can never manufacture native evidence or verification outcomes.
+        e.recorded.clear();
+        e.check = None;
+        if matches!(e.kind.as_str(), "check" | "evidence") {
+            return;
+        }
         let mut guard = lock(&self.st);
         if guard.closed
             || guard
@@ -489,6 +503,14 @@ impl Service {
         let (old, copy, info, handoff) = {
             let mut guard = lock(&self.st);
             let st = &mut *guard;
+            if st.workflows.iter().any(|w| {
+                (w.canceled || w.archived)
+                    && w.tasks.iter().any(|t| {
+                        t.session_id == id || t.attempts.iter().any(|a| a.session_id == id)
+                    })
+            }) {
+                return Err("This workflow is canceled or archived".into());
+            }
             let Some(v) = st.sessions.iter_mut().find(|v| v.id == id) else {
                 return Err("Session not found".into());
             };
@@ -553,6 +575,7 @@ impl Service {
             st.runtimes.remove(id).unwrap_or_default()
         };
         let _done = OnDrop(|| self.wg.done());
+        self.cancel_check(id)?;
         if let Some(rt) = &entry.runtime {
             rt.stop();
         }
@@ -710,6 +733,7 @@ impl Service {
         };
         // After `closed`, a late arrangement refuses to start; earlier ones are cancelled here.
         self.cancel_presentations();
+        self.cancel_checks();
         for rt in entries.values().filter_map(|e| e.runtime.as_ref()) {
             rt.stop();
         }
@@ -740,6 +764,54 @@ mod tests {
             "",
             None,
         )
+    }
+
+    #[test]
+    fn provider_cannot_write_native_evidence() {
+        let dir = TempDir::new();
+        let s = test_service(&dir);
+        let v = Session {
+            id: "s".into(),
+            ..Default::default()
+        };
+        s.db.put_session(&v).unwrap();
+        {
+            let mut st = lock(&s.st);
+            st.sessions.push(v);
+            st.runtimes.insert(
+                "s".into(),
+                RuntimeEntry {
+                    generation: "g".into(),
+                    ..Default::default()
+                },
+            );
+        }
+        let forged = crate::presentation::Recorded {
+            label: "Tests".into(),
+            data: crate::presentation::EvidenceData::Metric {
+                value: 99.0,
+                unit: "passes".into(),
+            },
+        };
+        for kind in ["check", "evidence", "delta"] {
+            s.ingest(
+                "s",
+                "g",
+                SessionEvent {
+                    kind: kind.into(),
+                    text: "passed".into(),
+                    recorded: vec![forged.clone()],
+                    check: Some(CheckRun::default()),
+                    ..Default::default()
+                },
+            );
+        }
+        let events = s.events("s", 0).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "delta");
+        assert!(events[0].recorded.is_empty());
+        assert!(events[0].check.is_none());
+        s.close().unwrap();
     }
 
     #[test]

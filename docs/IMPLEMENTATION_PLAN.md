@@ -8,7 +8,7 @@ First Phase 0 slice implemented locally:
 
 - **0.1 (partial):** ignored `.claude/worktrees/`. Existing uncommitted migration preserved; no branch publication or remote CI run performed in this slice.
 - **0.2 (partial):** replaced the deleted Go runtime's commands in both GitHub workflows with Rust tests/builds. Main CI now formats, tests and lints the backend, and caches both Rust projects. Native validation runs the Rust `nook-check` binary.
-- **0.5 (partial):** smoke test reads all 23 desktop `METHODS`, checks that each reaches the backend, creates a persisted workflow, validates the presentation request path, and shuts down. Fixed unknown commands with empty arguments incorrectly returning `Missing argument`, which would hide missing dispatch entries. Added a successful standard-presentation stdio regression test. Golden Rust/TypeScript fixtures remain outstanding.
+- **0.5 (partial):** smoke test reads all 23 desktop `METHODS`, checks that each reaches the backend, creates a persisted workflow, validates the presentation request path, and shuts down. Fixed unknown commands with empty arguments incorrectly returning `Missing argument`, which would hide missing dispatch entries. Added a successful standard-presentation stdio regression test. Golden Rust/TypeScript fixtures were completed in Phase 2.
 - **0.6 (partial):** stopping/archiving a terminal session preserves its outcome and activity; active sessions still stop. Regression coverage includes all seven states and persistence across reopening. The unused `seen` field and other housekeeping remain outstanding.
 - IPC request accounting now uses `OnDrop`, so a request panic releases the shutdown wait.
 
@@ -26,6 +26,16 @@ Validation on macOS: 53 backend tests passed, followed by the newly added standa
 - Stabilized the Canvas contrast audit by disabling transitions for the audit and waiting for the selected theme.
 
 Backend tests (54), frontend unit tests (23), production build, and backend Clippy passed. Browser verification initially passed 35/36 cases; the remaining theme-transition timing failure was addressed in the audit itself and passed three consecutive runs in each browser (6/6). This is structural cleanup; the remaining implementation phases retain their original scope.
+
+### Phase 1 implementation — 2026-10-17
+
+Implemented 1.1–1.7 locally. Handoffs keep the full bounded audit and derive at most 48 KiB of conversation/outcomes, with explicit omissions. All accepted ancestors share a 128 KiB serialized reference budget; goals, briefs and rejection feedback fit within the 256 KiB launch limit. Accepted Git artifacts freeze HEAD, Changes and diff stat; acceptance checks both event revision and inspected code identity. No patch is applied automatically.
+
+Reject preserves an attempt and prepares a fresh, manually started session. Cancellation persists its gate before stopping active sessions, and canceled/archived workflows cannot resume through the generic session command. Draft editing, archival, attempt inspection, acceptance/failure attention items and opt-in workflow notifications are wired through the backend, native map and browser simulator. Live and example workflow models share state/task contracts; example-only presentation fields remain separate.
+
+Validation: 60 backend tests (plus one opt-in live test), 25 frontend unit tests, 40 Chromium/WebKit cases, backend Clippy, frontend production build, Tauri check, and the 27-command sidecar smoke guard passed on macOS. The real Codex 0.162.1 two-task check passed using the signed-in account in disposable Git worktrees, without tools or file changes. See `docs/VALIDATION.md` and `docs/validation/workflow-codex.json`.
+
+**Remaining exit gate:** the live run above exercises the runtime through IPC with programmatic review of exact output, not a person completing the workflow in an installed native app. Manual native acceptance, Windows, and real Claude approval validation remain unclaimed. Phase 2 was subsequently authorized and implemented below.
 
 ## 1. Baseline this plan describes
 
@@ -135,7 +145,7 @@ The critical path is 0 → 1 → 2 → 4.
 - [ ] 0.2 First CI run on the Rust code, then fix what it finds. Known unknowns: MSVC with `+crt-static` (`backend/.cargo/config.toml`), the macOS process and identity code, `cargo fmt --check`, `src-tauri` compiling with the new allowlist, WebKit e2e on the Windows runner.
 - [ ] 0.3 Re-run the backend suite on the tree with the new hook parser (51 tests). Add cases for duplicate or oversized `Content-Length`, folded headers and `Expect: 100-continue`. The toolchain recipe is in project memory (`local-rust-verification`).
 - [ ] 0.4 Docs pass from section 3. Move "validation recorded" blocks under dated headings so the Go-era and Rust-era records cannot be confused.
-- [ ] 0.5 Guards (G10 to G12):
+- [x] 0.5 Guards (G10 to G12):
   - Extend `sidecar-smoke.mjs` to read `METHODS` from `src-tauri/src/main.rs`, call each with empty arguments, and fail on "Unknown method". Add `CreateWorkflow` and a standard-mode `PresentSession`.
   - Golden JSON fixtures written by a Rust test and read by vitest, for the wire types and for events→evidence parity.
 - [ ] 0.6 Cheap defects: G8 (archive must not change a non-active session's state), G9 (either clear `seen` when a card is opened, which needs one new command, or remove it), G14 housekeeping.
@@ -158,13 +168,13 @@ These are the existing `VALIDATION.md` gates. They need no new features, and a f
 
 **Goal.** A person runs a three-task workflow on a real repository, recovers from a bad result, and hands over code, not just chat. Fixes G3 to G7.
 
-- [ ] 1.1 **Curate the handoff** (G3). Build the downstream-facing evidence from conversation and outcomes only, reusing `build_evidence`. Keep the full event list as the audit record. Show the person the size at acceptance. Cap what is sent to the next agent below the 256 KB prompt limit, with an explicit "older records omitted" marker.
-- [ ] 1.2 **Hand over code** (G4, decision D1). At acceptance, store `git rev-parse HEAD` of the task's worktree and a bounded diff (`Changes`) in the artifact. New optional fields with serde defaults, so the JSON-body store needs no migration. Supply the diff stat to dependents as reference data.
-- [ ] 1.3 **Send the goal** (G5, D2). Prefix every task prompt with it.
-- [ ] 1.4 **Reject and retry** (G6). Add `RejectWorkflowTask {reason}`. It either sends the reason back to the same session or starts a new one. Give a task an attempt list (session id, outcome, reason) so history survives. Accepted artifacts stay immutable. Design this once, because Loops reuse the attempt record.
-- [ ] 1.5 **Lifecycle** (G6). Add `CancelWorkflow` and `ArchiveWorkflow`, plus task edits before any session starts. Emit `failed` and `canceled` from `project()` and merge the live and sample TS workflow types.
-- [ ] 1.6 **Attention** (G7). Acceptance-pending and failed tasks appear in the attention view. Notifications follow the existing opt-in rule.
-- [ ] 1.7 **Tests.** An integration test through `ipc::dispatch` with `nook-fixture`: A → B → C, B rejected once then accepted, C's prompt contains A and B evidence under the limit, restart mid-run restores every state. Add e2e cases for failure and reject. The current e2e count is 1.
+- [x] 1.1 **Curate the handoff** (G3). Build the downstream-facing evidence from conversation and outcomes only, reusing `build_evidence`. Keep the full event list as the audit record. Show the person the size at acceptance. Cap what is sent to the next agent below the 256 KB prompt limit, with an explicit "older records omitted" marker.
+- [x] 1.2 **Hand over code** (G4, decision D1). At acceptance, store `git rev-parse HEAD` of the task's worktree and a bounded diff (`Changes`) in the artifact. New optional fields with serde defaults, so the JSON-body store needs no migration. Supply the diff stat to dependents as reference data.
+- [x] 1.3 **Send the goal** (G5, D2). Prefix every task prompt with it.
+- [x] 1.4 **Reject and retry** (G6). Add `RejectWorkflowTask {reason}`. It either sends the reason back to the same session or starts a new one. Give a task an attempt list (session id, outcome, reason) so history survives. Accepted artifacts stay immutable. Design this once, because Loops reuse the attempt record.
+- [x] 1.5 **Lifecycle** (G6). Add `CancelWorkflow` and `ArchiveWorkflow`, plus task edits before any session starts. Emit `failed` and `canceled` from `project()` and merge the live and sample TS workflow types.
+- [x] 1.6 **Attention** (G7). Acceptance-pending and failed tasks appear in the attention view. Notifications follow the existing opt-in rule.
+- [x] 1.7 **Tests.** An integration test through `ipc::dispatch` with `nook-fixture`: A → B → C, B rejected once then accepted, C's prompt contains A and B evidence under the limit, restart mid-run restores every state. Add e2e cases for failure and reject. There are now 3 workflow e2e cases per browser.
 
 Every new command goes in five places: `ipc.rs` dispatch, the `METHODS` allowlist, `types.ts`, the native map in `api.ts` and the browser simulator (`demoWorkflow.ts`). The 0.5 smoke guard catches a miss in the first two.
 
@@ -174,16 +184,18 @@ Every new command goes in five places: `ipc.rs` dispatch, the `METHODS` allowlis
 
 **Goal.** Replace "every native record is text" with provenance-labelled structured evidence that nothing in the model path can forge, and give Loops their verification primitive.
 
-- [ ] 2.1 **Adapters from things Nook owns.** Each is a pure function with tests, attribution `recorded`:
+- [x] 2.1 **Adapters from things Nook owns.** Each is a pure function with tests, attribution `recorded`:
   - Changes → Table (`FileChangeList`) from `git diff --numstat` and status, plus Text (`CodeDiff`).
   - Session timeline → Table (`TaskTimeline`): turn start and end, approvals, durations.
   - Workflow graph and accepted artifacts → Edges (`DependencyGraph`, `HandoffTrace`).
   - Metrics Nook measures itself (counts, durations), not provider claims.
-- [ ] 2.2 **Verification runner** (D3). A project's configured commands (name, argv, timeout, output cap) run in the session worktree, started by a button and never by agent text. They run under the existing process supervision, so cancel and quit kill the whole tree. They record start, end, exit code, duration and truncated output as a new `check` event kind in the session stream, so ordering, revisions and audit work unchanged. Produces `Tests` evidence whose result comes from the exit code only. Parsing JUnit or TAP is a later option. This is the first feature in which Nook itself executes project code: show the exact command, confirm on first use per project, and document that it is not sandboxed.
-- [ ] 2.3 **Prompt and catalog.** The arranger prompt currently lists text evidence only. Extend it to each kind with its legal components, and bump `PROMPT_VERSION` or `CATALOG` (both are already in the cache key).
-- [ ] 2.4 **Parity.** Keep the TS mirror (the stale-view logic needs client-side evidence without a round trip) and enforce it with the 0.5 golden fixtures for every new kind.
+- [x] 2.2 **Verification runner** (D3). A project's configured commands (name, argv, timeout, output cap) run in the session worktree, started by a button and never by agent text. They run under the existing process supervision, so cancel and quit kill the whole tree. They record start, end, exit code, duration and truncated output as a new `check` event kind in the session stream, so ordering, revisions and audit work unchanged. Produces `Tests` evidence whose result comes from the exit code only. Parsing JUnit or TAP is a later option. This is the first feature in which Nook itself executes project code: show the exact command, confirm on first use per project, and document that it is not sandboxed.
+- [x] 2.3 **Prompt and catalog.** The arranger prompt currently lists text evidence only. Extend it to each kind with its legal components, and bump `PROMPT_VERSION` or `CATALOG` (both are already in the cache key).
+- [x] 2.4 **Parity.** Keep the TS mirror (the stale-view logic needs client-side evidence without a round trip) and enforce it with the 0.5 golden fixtures for every new kind.
 
 **Exit.** A real session with code changes shows `FileChangeList` and `CodeDiff` derived from git. A configured check shows `TestReport` from the exit code. Golden tests keep Rust and TS identical. Nothing is inferred from prose.
+
+Phase 2 implementation uses explicit **Record evidence** snapshots and project **Verification checks** in the session Canvas. Native events retain their complete structured payload; git/metrics/graphs are never regenerated for an old revision. Provider ingestion discards structured fields and rejects reserved native event kinds. Catalog and arranger prompt versions are now 2. A Rust-generated fixture verifies all six kinds, layouts, standard cache identity and UTF-8 truncation in TypeScript. Real git and native executable IPC tests cover the exit criteria; manual installed-app and Windows acceptance remain release gates.
 
 ### Phase 3: Presentation Agent v2 (M to L)
 
@@ -236,7 +248,7 @@ Each has a default so work is not blocked.
 |---|---|---|
 | D1 | How should code flow between dependent tasks? | Capture a bounded diff and head commit into the artifact at acceptance. Do not base the downstream worktree on the upstream branch (conflicts, fan-in). Revisit "continue from upstream branch" for linear chains later. |
 | D2 | Should every task agent receive the workflow goal? | Yes, as a prefix. |
-| D3 | Is Nook allowed to run user-configured project commands (verification)? | Yes: per project, started by a button, with first-use confirmation, unsandboxed, documented as such. Needs your explicit OK, as it is the first time Nook executes project code. |
+| D3 | Is Nook allowed to run user-configured project commands (verification)? | Yes: per project, started by a button, with first-use confirmation, unsandboxed, documented as such. Authorized by the request to proceed with Phase 2 on 17 October 2026; implemented with per-configuration first-use confirmation. |
 | D4 | Loop triggers? | Manual only. Scheduled only while Nook is open. |
 | D5 | Is Codex arranging worth a spike? | Yes, time-boxed to one or two days. |
 | D6 | Who made the mascot and icon art in `docs/appIconAndMascotte/`, and under what terms? | Unknown to me. `THIRD_PARTY_NOTICES.md` currently says all characters and the icon are code-authored SVG, which is no longer true. |
